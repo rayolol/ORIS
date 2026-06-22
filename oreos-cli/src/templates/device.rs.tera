@@ -1,0 +1,29 @@
+
+use oreos::prelude::*;
+
+
+
+pub struct {{device.state.name}} {
+    //TODO
+}
+
+pub struct {{device.config.name}} {
+    //TODO
+}
+
+#[create(Device)]
+pub struct {{device.name}} {
+    #[Kernel] kernel: {{device.kernel}},
+    #[state] state: DeviceState<{{device.state}}>,
+    #[config] config: DeviceConfig<{{device.config}}>,
+
+    
+    {% if device.middleware %}
+    #[middleware] middleware: {{device.middleware.name}},
+    {%endif%}
+
+    {% for backend in device.backends %}
+    #[backends] backend: {{backend.name}}
+    {% endfor %}
+}
+

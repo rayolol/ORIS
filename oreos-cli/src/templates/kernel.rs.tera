@@ -1,0 +1,18 @@
+// Kernel for {{ device.name }}
+
+pub use oreos::prelude::*;
+
+
+pub struct {{ device.kernel.bus }} {
+    // bus specific fields
+}
+
+#[derive(Kernel)]
+pub struct {{ device.name }} {
+    #[state]
+    state : {{ device.state }},  
+    #[config]
+    config : {{ device.state }},
+    #[bus]
+    bus: &'static {{ device.kernel.bus }},
+}

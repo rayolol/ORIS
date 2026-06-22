@@ -1,0 +1,12 @@
+
+
+#[derive(Middleware)]
+struct {{ name }} { 
+    //TODO: Implement middleware logic
+}
+
+#[middleware]
+impl {{ name }} {
+   //TODO: Implement middleware callback methods
+}
+

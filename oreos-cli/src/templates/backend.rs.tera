@@ -1,0 +1,19 @@
+// Backend implementation for {{ device.name }}
+
+pub struct Backend {
+    //TODO
+}
+
+impl Backend for {{device.backend}} {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub async fn init(&mut self) {
+        todo!("Initialize backend")
+    }
+
+    pub async fn tick(&mut self) {
+        todo!("Backend tick")
+    }
+}

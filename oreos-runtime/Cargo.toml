@@ -1,0 +1,57 @@
+[package]
+name = "oreos-runtime"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "Oreos"
+
+[[bin]]
+name = "oreos-runtime"
+path = "src/main.rs"
+
+[dependencies]
+oreos-macros = { path = "../oreos-macros" }
+
+heapless = { workspace = true }
+nb = { workspace = true }
+embedded-hal = { workspace = true }
+libm = { workspace = true }
+embedded-io = { workspace = true }
+minicbor = { workspace = true }
+enum_delegate = { workspace = true }
+embassy-sync = { workspace = true }
+embassy-stm32 = { workspace = true }
+embedded-hal-async = { workspace = true }
+embedded-io-async = { workspace = true }
+bitfields = { workspace = true }
+bitbybit = { workspace = true }
+arbitrary-int = { workspace = true }
+crc = { workspace = true }
+embassy-executor = { workspace = true }
+embassy-time = { workspace = true }
+panic-probe = { workspace = true }
+enum_dispatch = { workspace = true }
+fugit = { workspace = true }
+defmt = { workspace = true }
+maybe-async = { workspace = true }
+static_cell = { workspace = true }
+defmt-rtt = { workspace = true }
+tmc2209 = { workspace = true }
+critical-section = { workspace = true }
+
+
+[target.'cfg(all(target_arch = "arm", target_os = "none"))'.dependencies]
+cortex-m = { workspace = true }
+cortex-m-rt = { workspace = true }
+# rtic = { version = "2.1", features = ["thumbv7-backend"] }
+# rtic-monotonics = { version = "2.0", features = ["cortex-m-systick"] }
+cortex-m-semihosting = { workspace = true }
+# stm32f1xx-hal = { version = "0.11.0", features = ["stm32f103", "medium"] }
+# rtt-target = { version = "0.6.1" }
+# panic-rtt-target = { version = "0.2.0" }
+# rtic-sync = "1.4.0"
+
+# [[bin]]
+# name = "test"
+# path = "test/test.rs"
