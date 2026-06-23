@@ -21,26 +21,51 @@ oreos-macros = { path = "../oreos/oreos-macros" }
 Define your application:
 
 ```rust
-use oreos_macros::app;
+use oreos_runtime::prelude::*;
 
-#[app]
-pub struct MyApp {
-    // Define your devices and state here
+#[devices]
+mod devices {
+    led: Output<'static>
 }
 
-#[tokio::main]
-async fn main() {
-    let mut app = MyApp::new();
-    app.run().await;
+// generates a ctx dependency injection object containing the peripherals and declared devices
+
+#[app]
+mod your_app {
+    #[init]
+    async fn setup(p: Peripherals, s: Spawner) {
+        // init code. 
+        // devices are created here 
+
+        let led = Output::new(/* embassy's pin init logic*/)
+
+        Devices {
+            led
+        }
+    }
+
+    #[loop_(rate = 1ms)]
+    async fn loop(ctx: Context) {
+        //loop code 
+    }
+
+
+    #[loop_(rate = 10)]
+    async fn loop2(ctx: Context) {
+        #[once]
+        {
+            //clause that get executed once on start up (not stable)
+        }
+        //2nd loop code
+    }
 }
 ```
 
 ## Features
 
 - **Async/await runtime** with Embassy
-- **Hardware abstraction** for STM32F1xx microcontrollers
+- **Hardware abstraction** for STM32 microcontrollers
 - **Motor and stepper drivers** (TMC2209, TMC2160, PWM)
-- **Middleware system** for cross-cutting concerns
 - **Command dispatch** framework for device control
 
 ## License
