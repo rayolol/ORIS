@@ -49,7 +49,30 @@
 //! ```
 
 // ── Macros from oreos-macros ────────────────────────────────────────────────
-pub use oreos_macros::{Config, State, GenericBus, Kernel, create, devices, make_transport};
+pub use oreos_macros::{Config, State, GenericBus, Kernel, app, create, devices, make_transport};
+
+// ── External crates for embedded environment ──────────────────────────────────
+#[doc(hidden)]
+pub use static_cell::{self, StaticCell};
+
+#[doc(hidden)]
+pub use embassy_executor;
+
+#[doc(hidden)]
+pub use embassy_stm32;
+
+#[doc(hidden)]
+pub use embassy_sync;
+
+#[doc(hidden)]
+pub use embassy_time;
+
+#[doc(hidden)]
+pub use cortex_m_rt;
+
+#[doc(hidden)]
+pub use defmt;
+
 
 // ── HAL traits and types ────────────────────────────────────────────────────
 pub use crate::hal::{

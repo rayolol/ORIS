@@ -52,7 +52,7 @@ embassy-time = { version = "0.5.1", features = ["tick-hz-1_000_000", "generic-qu
 embassy-stm32 = { version = "0.6.0", features = ["stm32f103c8", "time-driver-any", "defmt"] }
 
 # Debug and logging
-defmt = "1.0.1"
+defmt = "1.1.0"
 defmt-rtt = "1.1.0"
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 

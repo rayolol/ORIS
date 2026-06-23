@@ -78,10 +78,9 @@ impl syn::parse::Parse for DeviceItem {
         let name: syn::Ident = input.parse()?;
         input.parse::<syn::Token![:]>()?;
         let ty: syn::Type = input.parse()?;
-        let generics: syn::Generics = input.parse()?;
-        
-        let _ =input.parse::<syn::Token![,]>().ok();
-        Ok(DeviceItem { name, ty, shared,  attrs})
+
+        let _ = input.parse::<syn::Token![,]>().ok();
+        Ok(DeviceItem { name, ty, shared, attrs })
     }
 }
 
