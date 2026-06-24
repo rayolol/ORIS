@@ -3,6 +3,7 @@ pub mod ops;
 pub mod scanner;
 pub mod diff;
 pub mod sync_engine;
+pub mod templates;
 
 use clap::Parser;
 use anyhow::Result;
@@ -148,10 +149,10 @@ fn create_middleware(node: &mut ControlNode, device_name: String) -> Result<()> 
         .ok_or_else(|| anyhow::anyhow!("Device '{}' not found", device_name))?;
 
     let dev_name = device.name.clone();
-    device.middleware = Some(middleware);
+    device.middleware.push(middleware);
     node.save()?;
 
-    println!("✓ Added middleware '{}' to device '{}'", name, dev_name);
+    println!("Added middleware '{}' to device '{}'", name, dev_name);
 
     Ok(())
 }
@@ -165,8 +166,9 @@ fn create_device(node: &mut ControlNode) -> Result<()> {
         name: name.clone(),
         state: TypeName { name: state_name },
         config: TypeName { name: config_name },
-        middleware: None,
+        middleware: vec![],
         kernel: Kernel {
+            name: format!("{}_kernel", name),
             bus: BusLane {
                 name: "main".to_string(),
                 lane_type: "sync".to_string(),
@@ -179,7 +181,7 @@ fn create_device(node: &mut ControlNode) -> Result<()> {
     node.devices.push(device);
     node.save()?;
 
-    println!("✓ Created device '{}'", name);
+    println!("Created device '{}'", name);
 
     Ok(())
 }
@@ -196,6 +198,7 @@ fn show_config(node: &ControlNode, device_name: Option<&str>) -> Result<()> {
 }
 
 fn generate_code(node: &ControlNode, device_name: &str, output_dir: &str) -> Result<()> {
+
     let device = node
         .find_device(device_name)
         .ok_or_else(|| anyhow::anyhow!("Device '{}' not found", device_name))?;
@@ -203,31 +206,12 @@ fn generate_code(node: &ControlNode, device_name: &str, output_dir: &str) -> Res
     let device_dir = format!("{}/{}", output_dir, device.name);
     std::fs::create_dir_all(&device_dir)?;
 
-    // Generate device and kernel files
     let files = ops::generate(device)?;
-    let templates = vec!["kernel.rs", "device.rs"];
-    for (template, content) in templates.iter().zip(files.iter()) {
-        let path = format!("{}/{}", device_dir, template);
+
+    for (name, content) in files.iter() {
+        let path = format!("src/{}/{}", device_dir, name);
         std::fs::write(&path, content)?;
-        println!("✓ Generated {}", path);
+        println!("Generated {}", path);
     }
-
-    // Generate backend folder with each backend instance
-    if !device.backends.is_empty() {
-        let backends_dir = format!("{}/backends", device_dir);
-        std::fs::create_dir_all(&backends_dir)?;
-
-        for backend in &device.backends {
-            let backend_dir = format!("{}/{}", backends_dir, backend.name);
-            std::fs::create_dir_all(&backend_dir)?;
-
-            let backend_file = format!("{}/backend.rs", backend_dir);
-            let backend_content = format!("// Backend: {}\n\npub struct {} {{\n    //TODO\n}}\n",
-                backend.name, backend.name);
-            std::fs::write(&backend_file, backend_content)?;
-            println!("✓ Generated {}", backend_file);
-        }
-    }
-
     Ok(())
 }

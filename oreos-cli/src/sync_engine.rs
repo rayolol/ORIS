@@ -27,12 +27,9 @@ pub fn resolve_device(
         name: meta.name.clone(),
         state: TypeName { name: refs.state.clone() },
         config: TypeName { name: refs.config.clone() },
-        kernel: Kernel { bus: resolve_bus(&refs.kernel_bus, table)? },
-        backends: refs.backends.iter()
-            .map(|b| Backend { name: b.clone(), periph_access: None })
-            .collect(),
-        middleware: refs.middleware.as_ref()
-            .map(|m| Middleware { name: m.clone() }),
+        kernel: Kernel {name: refs.kernel_bus.clone(), bus: resolve_bus(&refs.kernel_bus, table)? },
+        backends: refs.backends.iter().map(|b| Backend { name: b.clone(), periph_access: None }).collect(),
+        middleware: refs.middleware.iter().map(|m| Middleware {name: m.clone()}).collect()
     })
 }
 

@@ -49,7 +49,7 @@ pub struct Device {
     pub name: String,
     pub state: TypeName,
     pub config: TypeName,
-    pub middleware: Option<Middleware>,
+    pub middleware: Vec<Middleware>,
     pub kernel: Kernel,
     pub backends: Vec<Backend>,
 }
@@ -61,6 +61,7 @@ pub struct Middleware {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Kernel {
+    pub name: String,
     pub bus: BusLane,
 }
 

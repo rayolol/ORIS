@@ -1,11 +1,2 @@
 [build]
-target = "thumbv7m-none-eabi"
-
-[target.thumbv7m-none-eabi]
-rustflags = ["-C", "link-arg=-Tlink.x"]
-
-# Uncomment and configure for your development environment.
-# Examples:
-# runner = "arm-none-eabi-gdb"
-# runner = "openocd -f interface/stlink.cfg -f target/stm32f1x.cfg -c 'program {file} verify reset exit'"
-# runner = "probe-rs run --chip stm32f103c8"
+target = "aarch64-apple-darwin"
