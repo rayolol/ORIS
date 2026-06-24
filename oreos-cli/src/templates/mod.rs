@@ -9,7 +9,17 @@ pub fn kernel_template(name: &str, state: &str, config: &str, bus: &str) -> Stri
 
 
     let tokens = quote! {
-        [derive(Kernel)]
+
+        use oreos::prelude::*;
+
+        #[derive(GenericBus)]
+        struct #bus {
+            #[state]
+            state: #state,
+            //TODO use the lanes and route them
+        }
+
+        #[derive(Kernel)]
         struct #name {
             #[state]
             state: #state,
@@ -18,6 +28,7 @@ pub fn kernel_template(name: &str, state: &str, config: &str, bus: &str) -> Stri
             #[bus]
             bus: &'static #bus
         }
+
     };
 
     prettyplease::unparse(&syn::parse2(tokens).unwrap())
@@ -27,6 +38,9 @@ pub fn kernel_template(name: &str, state: &str, config: &str, bus: &str) -> Stri
 pub fn middleware_template(name: &str) -> String {
     let name = format_ident!("{}", name);
     let tokens = quote! {
+
+        use oreos::prelude::*;
+
         #[derive(Middleware)]
         struct #name {
             // TODO: Implement middleware logic
@@ -43,6 +57,10 @@ pub fn middleware_template(name: &str) -> String {
 pub fn backend_template(name: &str) -> String {
     let name = format_ident!("{}", name);
     let tokens = quote! {
+
+        use oreos::prelude::*;
+
+
         struct #name {
             // TODO
         }
@@ -82,6 +100,7 @@ pub fn device_template(
 
     let tokens = quote! {
         use oreos::prelude::*;
+        // import the components location
 
         pub struct #state {
             // TODO

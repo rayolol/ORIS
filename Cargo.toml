@@ -25,6 +25,7 @@ clap = { version = "4.6.1", features = ["derive"] }
 tera = "1.20.1"
 toml = "1.1.2"
 
+
 # Embedded HAL and core
 embedded-hal = "1.0.0"
 embedded-hal-async = "1.0.0"

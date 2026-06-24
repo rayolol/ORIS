@@ -37,6 +37,8 @@ pub fn generate(device: &Device) -> Result<HashMap<String, String>> {
     files.insert("kernel.rs".to_string(), kernel_template(kernel, state, config, bus));
     files.insert("device.rs".to_string(), device_template(name, state, kernel, config, &middlewares.as_slice(), &backends.as_slice()));
 
+    println!("[DEBUG] created and pushed files");
+
 
     Ok(files)
 }

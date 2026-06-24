@@ -161,6 +161,7 @@ fn create_device(node: &mut ControlNode) -> Result<()> {
     let name = ops::ask("Device name: ")?;
     let state_name = ops::ask("State type name: ")?;
     let config_name = ops::ask("Config type name: ")?;
+    let bus_name = ops::ask("bus name")?;
 
     let device = Device {
         name: name.clone(),
@@ -170,7 +171,7 @@ fn create_device(node: &mut ControlNode) -> Result<()> {
         kernel: Kernel {
             name: format!("{}_kernel", name),
             bus: BusLane {
-                name: "main".to_string(),
+                name: bus_name.to_string(),
                 lane_type: "sync".to_string(),
                 bound: "unbounded".to_string(),
             },
@@ -209,7 +210,7 @@ fn generate_code(node: &ControlNode, device_name: &str, output_dir: &str) -> Res
     let files = ops::generate(device)?;
 
     for (name, content) in files.iter() {
-        let path = format!("src/{}/{}", device_dir, name);
+        let path = format!("{}/{}", device_dir, name);
         std::fs::write(&path, content)?;
         println!("Generated {}", path);
     }
