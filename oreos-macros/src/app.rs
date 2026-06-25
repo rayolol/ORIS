@@ -1,16 +1,11 @@
-use std::iter::once;
-
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{ItemMod, parse_macro_input};
 
-use super::{AppArgs, DeviceList, DeviceItem};
+use super::AppArgs;
 
 const DEFAULT_LOOP_RATE: u64 = 1000;
 const DEFAULT_PRIORITY: u8 = 1;
-
-
-
 
 struct LoopArgs {
     rate: u64,
@@ -19,7 +14,10 @@ struct LoopArgs {
 
 impl Default for LoopArgs {
     fn default() -> Self {
-        Self { rate: DEFAULT_LOOP_RATE, priority: DEFAULT_PRIORITY }
+        Self {
+            rate: DEFAULT_LOOP_RATE,
+            priority: DEFAULT_PRIORITY,
+        }
     }
 }
 
@@ -27,7 +25,11 @@ fn parse_int<T: std::str::FromStr>(expr: &syn::Expr) -> syn::Result<T>
 where
     T::Err: std::fmt::Display,
 {
-    if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(lit), .. }) = expr {
+    if let syn::Expr::Lit(syn::ExprLit {
+        lit: syn::Lit::Int(lit),
+        ..
+    }) = expr
+    {
         lit.base10_parse::<T>()
     } else {
         Err(syn::Error::new_spanned(expr, "Expected an integer"))
@@ -57,8 +59,6 @@ fn rewrite_ctx_param_type(function: &mut syn::ItemFn) {
     }
 }
 
-
-
 pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut init_fn: Option<syn::Ident> = None;
 
@@ -73,8 +73,18 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
     let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
 
     if let Some((_, items)) = &mut input.content {
-        items.insert(0, syn::parse_quote!(use super::*;));
-        items.insert(1, syn::parse_quote!(use crate::devices::*;));
+        items.insert(
+            0,
+            syn::parse_quote!(
+                use super::*;
+            ),
+        );
+        items.insert(
+            1,
+            syn::parse_quote!(
+                use crate::devices::*;
+            ),
+        );
 
         for item in items.iter_mut() {
             if let syn::Item::Fn(function) = item {
@@ -83,8 +93,11 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
                 function.vis = syn::Visibility::Public(syn::token::Pub::default());
 
                 if is_init {
-                    let attr = function.attrs.iter()
-                        .find(|a| a.path().is_ident("init")).unwrap();
+                    let attr = function
+                        .attrs
+                        .iter()
+                        .find(|a| a.path().is_ident("init"))
+                        .unwrap();
 
                     let args = match attr.parse_args_with(parser) {
                         Ok(a) => a,
@@ -93,7 +106,8 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
 
                     if init_fn.is_some() {
                         return syn::Error::new_spanned(function, "only one #[init] is allowed")
-                            .to_compile_error().into();
+                            .to_compile_error()
+                            .into();
                     }
 
                     for meta in args {
@@ -103,7 +117,8 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
                             }
                             _ => {
                                 return syn::Error::new_spanned(meta, "Expected key = value")
-                                    .to_compile_error().into();
+                                    .to_compile_error()
+                                    .into();
                             }
                         }
                     }
@@ -113,38 +128,49 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
 
                 if is_loop {
-                    let attr = function.attrs.iter()
-                        .find(|a| a.path().is_ident("loop_")).unwrap();
+                    let attr = function
+                        .attrs
+                        .iter()
+                        .find(|a| a.path().is_ident("loop_"))
+                        .unwrap();
 
                     let content: Vec<_> = function.sig.inputs.iter().collect();
-     
+
                     let mut settings = LoopArgs::default();
                     let args = match attr.parse_args_with(parser) {
                         Ok(a) => a,
                         Err(e) => return e.to_compile_error().into(),
                     };
 
-                    let func_args_type: Vec<_> = function.sig.inputs.iter().filter_map(|a| {
-                        if let syn::FnArg::Typed(pt) = a {
-                            if let syn::Type::Path(tp) = &*pt.ty {
-                                if tp.path.is_ident("Context") {
-                                    return None
-                                } else {
-                                    return Some(pt.clone())
+                    let func_args_type: Vec<_> = function
+                        .sig
+                        .inputs
+                        .iter()
+                        .filter_map(|a| {
+                            if let syn::FnArg::Typed(pt) = a {
+                                if let syn::Type::Path(tp) = &*pt.ty {
+                                    if tp.path.is_ident("Context") {
+                                        return None;
+                                    } else {
+                                        return Some(pt.clone());
+                                    }
                                 }
                             }
-                        }
-                        None
-                    }).collect();
+                            None
+                        })
+                        .collect();
 
                     // just the names, for forwarding in the call
-                    let func_arg_names: Vec<syn::Ident> = func_args_type.iter().filter_map(|pt| {
-                        if let syn::Pat::Ident(pi) = &*pt.pat {
-                            Some(pi.ident.clone())
-                        } else {
-                            None
-                        }
-                    }).collect();
+                    let func_arg_names: Vec<syn::Ident> = func_args_type
+                        .iter()
+                        .filter_map(|pt| {
+                            if let syn::Pat::Ident(pi) = &*pt.pat {
+                                Some(pi.ident.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
 
                     for meta in args {
                         match meta {
@@ -197,7 +223,7 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
                             #(#once_calls);*
                             loop {
                                 crate::app::#fn_name(ctx.view()).await;
-                                embassy_time::Timer::after_millis(#rate).await;
+                                ::Oreos::embassy_time::Timer::after_millis(#rate).await;
                             }
                         }
                     };
@@ -230,7 +256,7 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
             let p = #hal_crate::init(#init_config);
             let dev: devices::Devices = #init_call(p, spawner).await;
             let ctx = devices::__init_devices__(spawner, dev);
-            
+
             #(#spawn_calls)*
         }
 

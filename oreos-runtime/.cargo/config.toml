@@ -1,0 +1,12 @@
+[build]
+target = "thumbv7m-none-eabi"
+
+[target.thumbv7m-none-eabi]
+rustflags = ["-C", "link-arg=-Tlink.x"]
+runner = "probe-run --chip STM32F103C8"
+
+# Patch override for future git dependencies (when oreos is published to GitHub)
+# Uncomment when using: oreos-runtime = { git = "https://github.com/PLACEHOLDER/oreos" }
+# [patch."https://github.com/PLACEHOLDER/oreos"]
+# oreos-runtime = { path = "../oreos/oreos-runtime" }
+# oreos-macros  = { path = "../oreos/oreos-macros" }

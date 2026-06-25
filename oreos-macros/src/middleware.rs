@@ -190,7 +190,7 @@ pub fn middleware(mut input: ItemImpl) -> syn::Result<TokenStream> {
             #(#impl_items)*
 
             fn callback_match(&mut self, cmd: __DeviceCommand, state: &mut ::Oreos::hal::DeviceState<__DeviceState>, config: &::Oreos::hal::DeviceConfig<__DeviceConfig>) {
-                ::defmt::debug!("middleware: dispatching command");
+                ::Oreos::defmt::debug!("middleware: dispatching command");
                 match cmd {
                     #(#on_statements),*
                 }

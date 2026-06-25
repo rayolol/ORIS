@@ -1,23 +1,20 @@
 #![feature(proc_macro_span)]
 
-
-
 mod app;
-mod devices;
-mod transport;
-mod derive;
 mod command;
-mod registry;
-mod middleware;
+mod derive;
+mod devices;
 mod metadata;
+mod middleware;
+mod registry;
+mod transport;
 
 /*
-    TODO: make a derive macro for the Backend type 
+    TODO: make a derive macro for the Backend type
     TODO: Make better error handling for macros internal
     TODO: refactor this file, put each macro in its own file, and put shared code in a utils module
     TODO: use darling for future macros, it makes parsing attributes much easier
 */
-
 
 use proc_macro::TokenStream;
 use syn::{DeriveInput, ItemImpl, ItemStruct, parse_macro_input, spanned::Spanned};
@@ -80,7 +77,12 @@ impl syn::parse::Parse for DeviceItem {
         let ty: syn::Type = input.parse()?;
 
         let _ = input.parse::<syn::Token![,]>().ok();
-        Ok(DeviceItem { name, ty, shared, attrs })
+        Ok(DeviceItem {
+            name,
+            ty,
+            shared,
+            attrs,
+        })
     }
 }
 
@@ -94,41 +96,43 @@ pub fn devices(attr: TokenStream, item: TokenStream) -> TokenStream {
     devices::devices(attr, item)
 }
 
-
 #[proc_macro]
 pub fn make_transport(item: TokenStream) -> TokenStream {
     transport::make_transport(item)
 }
 
-
 fn convert_struct_to_derive_input(item_struct: ItemStruct) -> syn::Result<DeriveInput> {
     // 1. Convert the ItemStruct back into a TokenStream
     let tokens = quote::quote! { #item_struct };
-    
+
     // 2. Parse that TokenStream straight into a DeriveInput
     let derive_input: DeriveInput = syn::parse2(tokens)?;
-    
+
     Ok(derive_input)
 }
-
 
 #[proc_macro_attribute]
 pub fn create(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input: ItemStruct = parse_macro_input!(item as ItemStruct);
 
-    let derive_input =  match convert_struct_to_derive_input(input) {
+    let derive_input = match convert_struct_to_derive_input(input) {
         Ok(d) => d,
         Err(e) => return e.into_compile_error().into(),
     };
 
-    save_macro_metadata(&derive_input.ident.to_string(), crate::metadata::ComponentPayload::Device { refs: crate::metadata::DeviceRefs {
-        //TODO: parse these from attributes
-        state: "unbounded".to_string(),
-        config: "unbounded".to_string(),
-        kernel_bus: "unbounded".to_string(),
-        backends: vec![],
-        middleware: None,
-    }});
+    save_macro_metadata(
+        &derive_input.ident.to_string(),
+        crate::metadata::ComponentPayload::Device {
+            refs: crate::metadata::DeviceRefs {
+                //TODO: parse these from attributes
+                state: "unbounded".to_string(),
+                config: "unbounded".to_string(),
+                kernel_bus: "unbounded".to_string(),
+                backends: vec![],
+                middleware: None,
+            },
+        },
+    );
 
     match derive::create_device(derive_input) {
         Ok(t) => t.into(),
@@ -136,22 +140,23 @@ pub fn create(_attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-
-
 #[proc_macro_derive(GenericBus, attributes(route, state))]
 pub fn make_bus(item: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(item as DeriveInput);
 
-    save_macro_metadata(&input.ident.to_string(), crate::metadata::ComponentPayload::Bus { lanes: 
-        vec![
-            //TODO: parse these from attributes
-            crate::metadata::BusLaneInfo {
-                name: "main".to_string(),
-                lane_type: "sync".to_string(),
-                bound: "unbounded".to_string(),
-            }
-        ] 
-    });
+    save_macro_metadata(
+        &input.ident.to_string(),
+        crate::metadata::ComponentPayload::Bus {
+            lanes: vec![
+                //TODO: parse these from attributes
+                crate::metadata::BusLaneInfo {
+                    name: "main".to_string(),
+                    lane_type: "sync".to_string(),
+                    bound: "unbounded".to_string(),
+                },
+            ],
+        },
+    );
 
     match derive::impl_bus(input) {
         Ok(t) => t.into(),
@@ -159,14 +164,16 @@ pub fn make_bus(item: TokenStream) -> TokenStream {
     }
 }
 
-
 #[proc_macro_derive(Kernel, attributes(state, config, bus))]
 pub fn make_kernel(item: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(item as DeriveInput);
 
-    save_macro_metadata(&input.ident.to_string(), crate::metadata::ComponentPayload::Kernel { 
-        bus: "unbounded".to_string()
-    });
+    save_macro_metadata(
+        &input.ident.to_string(),
+        crate::metadata::ComponentPayload::Kernel {
+            bus: "unbounded".to_string(),
+        },
+    );
 
     match derive::impl_kernel(input) {
         Ok(t) => t.into(),
@@ -178,7 +185,10 @@ pub fn make_kernel(item: TokenStream) -> TokenStream {
 pub fn make_middleware(item: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(item as DeriveInput);
 
-    save_macro_metadata(&input.ident.to_string(), crate::metadata::ComponentPayload::Middleware);
+    save_macro_metadata(
+        &input.ident.to_string(),
+        crate::metadata::ComponentPayload::Middleware,
+    );
 
     match derive::derive_middleware(input) {
         Ok(t) => t.into(),
@@ -196,12 +206,14 @@ pub fn middleware(_attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-
 #[proc_macro_derive(State)]
 pub fn make_state(item: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(item as DeriveInput);
 
-    save_macro_metadata(&input.ident.to_string(), crate::metadata::ComponentPayload::State);
+    save_macro_metadata(
+        &input.ident.to_string(),
+        crate::metadata::ComponentPayload::State,
+    );
 
     derive::derive_state(input).into()
 }
@@ -210,7 +222,10 @@ pub fn make_state(item: TokenStream) -> TokenStream {
 pub fn make_config(item: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(item as DeriveInput);
 
-    save_macro_metadata(&input.ident.to_string(), crate::metadata::ComponentPayload::Config);
+    save_macro_metadata(
+        &input.ident.to_string(),
+        crate::metadata::ComponentPayload::Config,
+    );
 
     derive::derive_config(input).into()
 }
@@ -219,7 +234,10 @@ pub fn make_config(item: TokenStream) -> TokenStream {
 pub fn make_command(item: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(item as DeriveInput);
 
-    save_macro_metadata(&input.ident.to_string(), crate::metadata::ComponentPayload::Command);
+    save_macro_metadata(
+        &input.ident.to_string(),
+        crate::metadata::ComponentPayload::Command,
+    );
 
     command::derive_command(input).into()
 }

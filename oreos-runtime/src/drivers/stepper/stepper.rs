@@ -1,8 +1,10 @@
+use crate::{
+    drivers::motor::StepperData,
+    hal::{Backend, Condition, DeviceState, Fault, Lane, Severity, State},
+};
 use defmt::trace;
 use embedded_hal::digital::{OutputPin, PinState};
-use crate::{config::HardwareConfig, drivers::motor::StepperData, hal::{Lane, Backend, Condition, DeviceState, State, Fault, Severity}, transport::bus::FastLane};
 use heapless::String;
-
 
 #[derive(Clone, Copy)]
 pub struct StepperConfig {
@@ -18,7 +20,7 @@ pub enum StepperError {
     Stall,
     NotAvailable,
     InvalidVelocity,
-    HalError
+    HalError,
 }
 
 impl Condition for StepperError {
@@ -53,7 +55,6 @@ pub struct Stepper<STEP, DIR, EN> {
     pulse_width_ticks: u32,
     pub control_hz: u32,
 }
-
 
 impl<STEP, DIR, EN> Stepper<STEP, DIR, EN>
 where
@@ -124,12 +125,15 @@ where
             .map_err(|_| StepperError::HalError)
     }
 
-    pub fn tick(&mut self) ->  Result<(), StepperError> {
+    pub fn tick(&mut self) -> Result<(), StepperError> {
         if !self.enabled || self.current_vel_steps_s == 0 {
             return Ok(());
         }
 
-        trace!("stepper tick: vel={}, pos={}", self.current_vel_steps_s, self.step_counter);
+        trace!(
+            "stepper tick: vel={}, pos={}",
+            self.current_vel_steps_s, self.step_counter
+        );
 
         if self.ticks_until_edge > 0 {
             self.ticks_until_edge -= 1;
@@ -139,7 +143,10 @@ where
         self.step_state_high = !self.step_state_high;
         self.step
             .set_state(PinState::from(self.step_state_high))
-            .map_err(|_| {defmt::error!("step pin error"); StepperError::HalError})?;
+            .map_err(|_| {
+                defmt::error!("step pin error");
+                StepperError::HalError
+            })?;
 
         if self.step_state_high {
             self.ticks_until_edge = self.pulse_width_ticks;
@@ -190,16 +197,14 @@ where
     //         faulted: false,
     //     }
     // }
-
 }
 
 // ─── StepperBackend ───────────────────────────────────────────────────────────
 
-
 // make sync later
 pub struct StepperBackend<STEP, DIR, EN, L: Lane<StepperData> + 'static> {
     pub(crate) stepper: Stepper<STEP, DIR, EN>,
-    bus: &'static L
+    bus: &'static L,
 }
 
 impl<STEP, DIR, EN, L: Lane<StepperData> + 'static> StepperBackend<STEP, DIR, EN, L>
@@ -214,22 +219,29 @@ where
             steps_per_rev: 200,
             microsteps: 16,
             invert_dir: true,
-            enable_active_low:true ,
+            enable_active_low: true,
             pulse_width_ticks: 100 as u32,
         };
         Self {
             stepper: Stepper::new(step, dir, en, control_hz, cfg),
-            bus
+            bus,
         }
     }
 
     pub async fn tick(&mut self) {
         if let Some(data) = self.bus.read() {
-            defmt::debug!("stepper backend: read from bus vel={}", data.vel_steps_per_s);
+            defmt::debug!(
+                "stepper backend: read from bus vel={}",
+                data.vel_steps_per_s
+            );
             self.stepper.set_velocity_steps_s(data.vel_steps_per_s);
         }
         let feedback = self.feedback();
-        defmt::trace!("stepper backend: write feedback pos={}, vel={}", feedback.position_steps, feedback.vel_steps_per_s);
+        defmt::trace!(
+            "stepper backend: write feedback pos={}, vel={}",
+            feedback.position_steps,
+            feedback.vel_steps_per_s
+        );
         self.bus.write(feedback);
         let _ = self.stepper.tick();
     }

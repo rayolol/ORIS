@@ -1,0 +1,12 @@
+# Rust Analyzer Configuration
+# Embedded workspace: oreos-runtime (no_std) + oreos-macros (proc-macro, host-built automatically)
+
+[cargo]
+target = "thumbv7m-none-eabi"
+checkOnSave = true
+
+[procMacro]
+enable = true
+
+[diagnostics]
+disabled = ["unresolved-proc-macro"]

@@ -2,6 +2,8 @@
 members = [
     "oreos-runtime",
     "oreos-macros",
+]
+exclude = [
     "oreos-cli",
 ]
 resolver = "2"

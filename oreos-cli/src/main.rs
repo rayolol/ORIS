@@ -1,3 +1,4 @@
+pub mod casing;
 pub mod scheme;
 pub mod ops;
 pub mod scanner;
@@ -26,7 +27,7 @@ enum Commands {
         resource: Option<Resource>,
 
         #[arg(short, long)]
-        target: Option<String>,
+        from: Option<String>,
     },
 
     Show {
@@ -38,7 +39,7 @@ enum Commands {
         #[arg(short, long)]
         device: String,
 
-        #[arg(short, long, default_value = "./generated")]
+        #[arg(short, long, default_value = "./src")]
         output: String,
     },
 
@@ -60,17 +61,17 @@ fn main() -> Result<()> {
     let mut node = ControlNode::load()?;
 
     match cli.command {
-        Commands::New { resource, target } => {
+        Commands::New { resource, from } => {
             match resource {
                 Some(Resource::Device) => create_device(&mut node)?,
                 Some(Resource::Backend) => {
-                    let target = target.ok_or_else(|| {
+                    let target = from.ok_or_else(|| {
                         anyhow::anyhow!("--target DEVICE is required for backend creation")
                     })?;
                     create_backend(&mut node, target)?;
                 }
                 Some(Resource::Middleware) => {
-                    let target = target.ok_or_else(|| {
+                    let target = from.ok_or_else(|| {
                         anyhow::anyhow!("--target DEVICE is required for middleware creation")
                     })?;
                     create_middleware(&mut node, target)?;
@@ -88,7 +89,7 @@ fn main() -> Result<()> {
         }
 
         Commands::Sync => {
-            let mut node = sync_config(node)?;
+            let node = sync_config(node)?;
             node.save()?;
             println!("✓ Saved updated OREOS.toml");
         }
@@ -204,15 +205,25 @@ fn generate_code(node: &ControlNode, device_name: &str, output_dir: &str) -> Res
         .find_device(device_name)
         .ok_or_else(|| anyhow::anyhow!("Device '{}' not found", device_name))?;
 
-    let device_dir = format!("{}/{}", output_dir, device.name);
+    let module_name = casing::to_snake_case(&device.name);
+    let device_dir = format!("{}/{}", output_dir, module_name);
     std::fs::create_dir_all(&device_dir)?;
 
     let files = ops::generate(device)?;
+    let mut module_declarations = String::new();
 
     for (name, content) in files.iter() {
         let path = format!("{}/{}", device_dir, name);
         std::fs::write(&path, content)?;
         println!("Generated {}", path);
+
+        let module_name = name.trim_end_matches(".rs");
+        module_declarations.push_str(&format!("pub mod {};\n", module_name));
     }
+
+    let mod_path = format!("{}/mod.rs", device_dir);
+    std::fs::write(&mod_path, module_declarations)?;
+    println!("Generated {}", mod_path);
+
     Ok(())
 }

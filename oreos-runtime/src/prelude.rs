@@ -49,7 +49,10 @@
 //! ```
 
 // ── Macros from oreos-macros ────────────────────────────────────────────────
-pub use oreos_macros::{Config, State, GenericBus, Kernel, app, create, devices, make_transport};
+pub use oreos_macros::{
+    Command, Config, GenericBus, Kernel, Middleware, State, app, create, devices, make_transport,
+    middleware,
+};
 
 // ── External crates for embedded environment ──────────────────────────────────
 #[doc(hidden)]
@@ -73,34 +76,38 @@ pub use cortex_m_rt;
 #[doc(hidden)]
 pub use defmt;
 
-
 // ── HAL traits and types ────────────────────────────────────────────────────
 pub use crate::hal::{
+    Backend,
+    Command,
+    Condition,
     // Traits
     Config as ConfigTrait,
-    State as StateTrait,
     Device,
-    Kernel as KernelTrait,
-    MaybeDevcie,
-    Middleware,
-    // Bus primitives (now in HAL)
-    Lane,
-    EstopFlag,
-    GenericBus as GenericBusTrait,
     // Types
     DeviceConfig,
     DeviceState,
+    EstopFlag,
+    Fault,
+    GenericBus as GenericBusTrait,
+    Kernel as KernelTrait,
     KernelError,
+    // Bus primitives (now in HAL)
+    Lane,
+    MaybeDevcie,
+    Middleware,
     Mode,
     Severity,
-    Command,
+    State as StateTrait,
 };
+
+// -- Utils -------------------------------------------------------------------
 
 // ── Bus implementations from transport ──────────────────────────────────────
 pub use crate::transport::{
-    traits::{TransportClient, TransportServer, PacketRequest, PacketResponse},
-    uart::*,
-    spi::*,
+    bus::{FastLane, SlowLane},
     i2c::*,
-    bus::{FastLane, SlowLane}
+    spi::*,
+    traits::{PacketRequest, PacketResponse, TransportClient, TransportServer},
+    uart::*,
 };

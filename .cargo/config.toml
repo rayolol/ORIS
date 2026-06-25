@@ -1,2 +1,2 @@
 [build]
-target = "aarch64-apple-darwin"
+target = "thumbv7m-none-eabi"

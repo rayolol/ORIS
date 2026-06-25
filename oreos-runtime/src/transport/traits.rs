@@ -1,5 +1,5 @@
-use embassy_sync::channel::{Channel, Sender};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::channel::{Channel, Sender};
 
 pub type CSRM = CriticalSectionRawMutex;
 
@@ -7,13 +7,17 @@ const CHANNEL_SIZE: usize = 10;
 
 pub enum RequestType {
     Write,
-    Read
+    Read,
 }
 
 #[allow(async_fn_in_trait)]
 pub trait TransportHandler<const N: usize> {
     type Error;
-    async fn transfer(&mut self, data: [u8; N], transfer_mode: RequestType) -> Result<Option<[u8; N]>, Self::Error>;
+    async fn transfer(
+        &mut self,
+        data: [u8; N],
+        transfer_mode: RequestType,
+    ) -> Result<Option<[u8; N]>, Self::Error>;
 }
 
 pub enum TransferResponse {
@@ -24,27 +28,30 @@ pub enum TransferResponse {
 pub enum ServerError {
     PeripheralError,
     EmptyResponse,
-    WriteReturn
+    WriteReturn,
 }
 
 pub struct PacketRequest {
     // pub sender_id: u8,
     pub transfer_mode: RequestType,
     pub payload: [u8; 8],
-    pub response_sender: Option<Sender<'static, CSRM, PacketResponse, 1>>
+    pub response_sender: Option<Sender<'static, CSRM, PacketResponse, 1>>,
 }
 
 pub struct PacketResponse {
-    pub payload: [u8; 8]
+    pub payload: [u8; 8],
 }
 
 #[allow(async_fn_in_trait)]
 pub trait PeripheralHandler {
     type Error;
-    async fn transfer(&mut self, data: [u8; 8], transfer_mode: RequestType, target: u8) -> Result<TransferResponse, Self::Error>;
+    async fn transfer(
+        &mut self,
+        data: [u8; 8],
+        transfer_mode: RequestType,
+        target: u8,
+    ) -> Result<TransferResponse, Self::Error>;
 }
-
-
 
 pub struct TransportServer<W: PeripheralHandler> {
     pub peripheral: W,
@@ -52,56 +59,59 @@ pub struct TransportServer<W: PeripheralHandler> {
 }
 
 impl<W: PeripheralHandler> TransportServer<W> {
-    pub const fn new(periph: W, channel: &'static Channel<CSRM, PacketRequest, CHANNEL_SIZE>) -> Self {
+    pub const fn new(
+        periph: W,
+        channel: &'static Channel<CSRM, PacketRequest, CHANNEL_SIZE>,
+    ) -> Self {
         Self {
             peripheral: periph,
-            channel_rx: channel
+            channel_rx: channel,
         }
     }
 }
-
 
 impl<W: PeripheralHandler> TransportServer<W> {
-
     pub async fn run(&mut self) -> Result<(), ServerError> {
-        loop {
-            let packet: PacketRequest = self.channel_rx.receive().await;
+        let packet: PacketRequest = self.channel_rx.receive().await;
 
-            let transfer_result = self.peripheral.transfer(packet.payload, packet.transfer_mode, 0).await;
-            let transfer_result = transfer_result.map_err(|_e| ServerError::PeripheralError)?;
-            match transfer_result
-            {
-                TransferResponse::Received(resp) => {
-                    let packet_resp = PacketResponse { payload: resp };
-                    if let Some(sender) = packet.response_sender {
-                        sender.send(packet_resp).await;
-                    } else {
-                        return Err(ServerError::EmptyResponse);
-                    }
-                }
-                TransferResponse::Written => {
-                    return Ok(());
+        let transfer_result = self
+            .peripheral
+            .transfer(packet.payload, packet.transfer_mode, 0)
+            .await;
+
+        let transfer_result = transfer_result.map_err(|_e| ServerError::PeripheralError)?;
+
+        match transfer_result {
+            TransferResponse::Received(resp) => {
+                let packet_resp = PacketResponse { payload: resp };
+                if let Some(sender) = packet.response_sender {
+                    sender.send(packet_resp).await;
+                } else {
+                    return Err(ServerError::EmptyResponse);
                 }
             }
-
-            return Ok(())
+            TransferResponse::Written => {
+                return Ok(());
+            }
         }
+
+        return Ok(());
     }
 }
 
-pub type ChannelTransport = static_cell::StaticCell<embassy_sync::channel::Channel<CSRM, PacketRequest, CHANNEL_SIZE>>;
+pub type ChannelTransport =
+    static_cell::StaticCell<embassy_sync::channel::Channel<CSRM, PacketRequest, CHANNEL_SIZE>>;
 
 pub struct TransportClient {
     channel_rx_slots: [Channel<CSRM, PacketResponse, 1>; 1],
-    channel_tx_slots: &'static Channel<CSRM, PacketRequest, CHANNEL_SIZE>
+    channel_tx_slots: &'static Channel<CSRM, PacketRequest, CHANNEL_SIZE>,
 }
-
 
 impl TransportClient {
     pub fn new(channel: &'static Channel<CSRM, PacketRequest, CHANNEL_SIZE>) -> Self {
         Self {
             channel_rx_slots: [Channel::new()],
-            channel_tx_slots: channel
+            channel_tx_slots: channel,
         }
     }
 
@@ -137,15 +147,16 @@ impl TransportClient {
     }
 }
 
-
-
-
 // TODO: fix issues with implementation
 
 impl TransportHandler<8> for &'static TransportClient {
     type Error = ServerError;
 
-    async fn transfer(&mut self, payload: [u8; 8], transfer_mode: RequestType) -> Result<Option<[u8; 8]>, ServerError> {
+    async fn transfer(
+        &mut self,
+        payload: [u8; 8],
+        transfer_mode: RequestType,
+    ) -> Result<Option<[u8; 8]>, ServerError> {
         TransportClient::transfer(self, payload, transfer_mode).await
     }
 }
@@ -155,7 +166,11 @@ impl TransportHandler<8> for &'static TransportClient {
 impl TransportHandler<5> for &'static TransportClient {
     type Error = ServerError;
 
-    async fn transfer(&mut self, data: [u8; 5], transfer_mode: RequestType) -> Result<Option<[u8; 5]>, ServerError> {
+    async fn transfer(
+        &mut self,
+        data: [u8; 5],
+        transfer_mode: RequestType,
+    ) -> Result<Option<[u8; 5]>, ServerError> {
         // Pack the 5-byte frame into an 8-byte container (prefix with the 5 bytes,
         // leave the remaining bytes as zero). The transport channel uses fixed
         // 8-byte payloads, so we forward through that path.

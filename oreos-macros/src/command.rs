@@ -1,10 +1,7 @@
-
-use syn::{DeriveInput};
-use quote::quote;
-use proc_macro2::TokenStream;
 use crate::registry;
-
-
+use proc_macro2::TokenStream;
+use quote::quote;
+use syn::DeriveInput;
 
 pub(crate) fn store_command(input: &DeriveInput) {
     let mut input_copy = input.clone();
@@ -14,13 +11,11 @@ pub(crate) fn store_command(input: &DeriveInput) {
 }
 
 pub(crate) fn fetch_command(name: &str) -> Option<DeriveInput> {
-    registry::fetch("Command", name)
-        .and_then(|raw| syn::parse_str(&raw).ok())
+    registry::fetch("Command", name).and_then(|raw| syn::parse_str(&raw).ok())
 }
 
 pub fn derive_command(input: DeriveInput) -> TokenStream {
     let name = &input.ident;
-    let data = &input.data;
 
     store_command(&input);
 

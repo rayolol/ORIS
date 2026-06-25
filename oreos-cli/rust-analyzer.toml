@@ -1,0 +1,12 @@
+# Rust Analyzer Configuration
+# Standalone std CLI workspace — builds for the host
+
+[cargo]
+target = "aarch64-apple-darwin"
+checkOnSave = true
+
+[procMacro]
+enable = true
+
+[diagnostics]
+disabled = ["unresolved-proc-macro"]

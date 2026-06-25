@@ -406,7 +406,7 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                         loop {
                             backend.tick().await;
                             //temporary 
-                            ::embassy_time::Timer::after_millis(10).await;
+                            ::Oreos::embassy_time::Timer::after_millis(10).await;
                         }
                     }
                 });
@@ -511,7 +511,7 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                 #config_ident: #config_type,
                 #middleware_param
             ) -> Self {
-                ::defmt::info!("creating device: {}", stringify!(#name));
+                ::Oreos::defmt::info!("creating device: {}", stringify!(#name));
                 Self {
                     #(#field_names: ::core::cell::UnsafeCell::new(Some(#field_names)),)*
                     #kernel_ident,
@@ -534,8 +534,8 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
             type Kernel = #kernel_type;
             type Command = __DeviceCommand;
 
-            fn tick(&mut self, _dt: fugit::Duration<u32, 1, 1000>) {
-                ::defmt::trace!("device tick: {}", stringify!(#name));
+            fn tick(&mut self, _dt: ::Oreos::fugit::Duration<u32, 1, 1000>) {
+                ::Oreos::defmt::trace!("device tick: {}", stringify!(#name));
 
                 self.#kernel_ident.state = self.#state_ident.custom;
                 self.#kernel_ident.tick();
@@ -548,7 +548,7 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
             }
 
             fn execute(&mut self, cmd: Self::Command) {
-                ::defmt::debug!("device execute command: {}", stringify!(#name));
+                ::Oreos::defmt::debug!("device execute command: {}", stringify!(#name));
                 self.#middleware_ident.command(cmd, &mut self.#state_ident, &self.#config_ident);
             }
         }

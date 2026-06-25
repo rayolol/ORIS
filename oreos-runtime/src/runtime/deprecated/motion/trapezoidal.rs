@@ -1,10 +1,9 @@
 use libm::sqrtf;
-use crate::runtime::kernel::{KernelConfig, KernelState};
 
 #[derive(Debug, Clone)]
 pub(crate) enum MotionPlanners {
     Trapezoidal(Trapezoidal),
-    Home(Home)
+    Home(Home),
 }
 
 impl MotionPlanners {
@@ -19,9 +18,7 @@ impl MotionPlanners {
                 );
             }
             Self::Home(h) => {
-                h.plan_absolute_move(
-                    config.max_vel_rad_s as f32
-                );
+                h.plan_absolute_move(config.max_vel_rad_s as f32);
             }
         }
     }
@@ -39,9 +36,7 @@ pub trait MotionPlanner {
     fn plan_absolute_move(&mut self, target: f32, current: f32, max_vel: f32, max_acc: f32);
 }
 
-
 // _____Homing Sequence_________
-
 
 #[derive(Debug, Clone)]
 enum HomeState {
@@ -49,7 +44,7 @@ enum HomeState {
     Backoff1,
     Searching2,
     Backoff2,
-    Comparing, 
+    Comparing,
     MovingToRest,
     Done,
 }
@@ -71,8 +66,6 @@ pub struct Home {
 impl Home {
     fn plan_absolute_move(&mut self, max_vel: f32) {
         self.active = true;
-        
-        
     }
 
     fn update(&mut self, dt: u32, stalled: bool) -> MotionSetpoint {
@@ -83,49 +76,69 @@ impl Home {
                     self.stall1_pos = self.current_rad;
                     self.state = HomeState::Backoff1;
                 }
-                return MotionSetpoint { vel_rad_s: self.current_vel, done: false }
-            },
+                return MotionSetpoint {
+                    vel_rad_s: self.current_vel,
+                    done: false,
+                };
+            }
             HomeState::Backoff1 => {
                 if self.current_rad == self.current_rad - (self.delta_pos / 2.0) {
                     self.state = HomeState::Searching2;
-                    self.current_vel = - self.current_vel;
+                    self.current_vel = -self.current_vel;
                 }
-                return MotionSetpoint { vel_rad_s: self.current_vel, done: false }
-            },
+                return MotionSetpoint {
+                    vel_rad_s: self.current_vel,
+                    done: false,
+                };
+            }
             HomeState::Backoff2 => {
                 if self.current_rad == self.current_rad - (self.delta_pos / 2.0) {
                     self.state = HomeState::Comparing;
                 }
-                return MotionSetpoint { vel_rad_s: 0.0, done: false }
-            },
+                return MotionSetpoint {
+                    vel_rad_s: 0.0,
+                    done: false,
+                };
+            }
             HomeState::Searching2 => {
                 if stalled {
                     self.current_vel = -self.current_vel;
                     self.stall2_pos = self.current_rad;
                     self.state = HomeState::Backoff2;
                 }
-                return MotionSetpoint { vel_rad_s: self.current_vel, done: false }
+                return MotionSetpoint {
+                    vel_rad_s: self.current_vel,
+                    done: false,
+                };
             }
             HomeState::Comparing => {
-                if ((self.stall1_pos - self.stall2_pos).abs() > 2.0) {
-
-                }
-                return MotionSetpoint { vel_rad_s: 0.0, done: true }
-            },
+                if ((self.stall1_pos - self.stall2_pos).abs() > 2.0) {}
+                return MotionSetpoint {
+                    vel_rad_s: 0.0,
+                    done: true,
+                };
+            }
             HomeState::Done => {
-                return MotionSetpoint { vel_rad_s: 0.0, done: true }
-            }, 
+                return MotionSetpoint {
+                    vel_rad_s: 0.0,
+                    done: true,
+                };
+            }
             HomeState::MovingToRest => {
-                return MotionSetpoint { vel_rad_s: 0.0, done: true }
-            },
+                return MotionSetpoint {
+                    vel_rad_s: 0.0,
+                    done: true,
+                };
+            }
             _ => {
-                return MotionSetpoint { vel_rad_s: 0.0, done: true }
+                return MotionSetpoint {
+                    vel_rad_s: 0.0,
+                    done: true,
+                };
             }
         }
     }
-
 }
-
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct MotionSetpoint {
@@ -213,7 +226,10 @@ impl Trapezoidal {
 
     pub fn update(&mut self, dt: u32) -> MotionSetpoint {
         if !self.active {
-            return MotionSetpoint { vel_rad_s: 0.0, done: true };
+            return MotionSetpoint {
+                vel_rad_s: 0.0,
+                done: true,
+            };
         }
 
         self.elapsed_us += dt;
@@ -231,7 +247,10 @@ impl Trapezoidal {
         } else {
             self.current_rad += self.delta_rad;
             self.clear();
-            return MotionSetpoint { vel_rad_s: 0.0, done: true };
+            return MotionSetpoint {
+                vel_rad_s: 0.0,
+                done: true,
+            };
         };
 
         MotionSetpoint {
