@@ -1,11 +1,6 @@
 use crate::hal::{Backend, Condition, DeviceState, Fault, Severity, State};
-use super::stepper::stepper::{Stepper, StepperError, StepperConfig};
+use super::stepper::stepper::{Stepper, StepperError, StepperConfig, StepperData};
 
-#[derive(Clone, Copy, Default)]
-pub struct StepperData {
-    pub position_steps: i32,
-    pub vel_steps_per_s: i32,
-}
 
 #[derive(Clone, Copy)]
 pub struct MotorCondition {
