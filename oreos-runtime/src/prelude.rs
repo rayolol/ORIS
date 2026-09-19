@@ -62,6 +62,9 @@ pub use static_cell::{self, StaticCell};
 pub use embassy_executor;
 
 #[doc(hidden)]
+pub use embassy_executor::Spawner;
+
+#[doc(hidden)]
 pub use embassy_stm32;
 
 #[doc(hidden)]

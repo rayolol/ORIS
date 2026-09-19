@@ -7,6 +7,8 @@ pub fn create_base_runtime() -> String {
     #![no_main]
 
     use oreos_runtime::prelude::*;
+    use your_embassy_crate::{Peripherals, gpio::{Output, Level, Speed}};
+
 
     oreos::install_defmt_timestamp!();
 
