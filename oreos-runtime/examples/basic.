@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use robot_arm_firmware_v2::prelude::*;
+use oreos::prelude::*;
 
 #[derive(Default, State, Clone, Copy)]
 struct MyState {

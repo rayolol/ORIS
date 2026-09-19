@@ -6,9 +6,9 @@
 > limitation** so this stays trustworthy as the framework changes. See
 > `oreos-cli`'s fix list (tracked separately) for what's planned to close them.
 
-OREOS (the project's working name; the original README/docs also use "ORIS" —
-see the fix list) is a node-driven robotics firmware framework for Rust +
-Embassy on ARM Cortex-M. It is composed of three crates:
+OREOS is a node-driven robotics firmware framework for Rust + Embassy. It is composed of three crates:
+
+
 
 | Crate | Role |
 |---|---|
@@ -22,7 +22,7 @@ Embassy on ARM Cortex-M. It is composed of three crates:
    Host (ROS / control software)
             │
             ▼
-     Control Node (MCN or LCN)
+     Control Node (MCN or LCN) (microcontroller)
             │
             ▼
           Device            ← #[create(Device)]
@@ -38,19 +38,22 @@ Embassy on ARM Cortex-M. It is composed of three crates:
 ```
 
 - **Control Node**: either an **MCN** (Motor Control Node — drives actuators)
-  or an **LCN** (Logic Control Node — sensors, screens, anything that isn't
+  or an **LCN** (Logic Control Node, sensors, screens, anything that isn't
   motor control). Same code shape; the distinction is purely semantic.
-- **Device**: one controlled unit (a motor, a sensor hub, a gripper...).
-  Owns exactly one **Kernel** and any number of **Backends**, plus an
-  optional **Middleware**.
-- **Kernel**: owns the device's `State`, `Config`, and `Bus`. Each tick it
-  checks the bus's e-stop, pulls bus → state, and pushes state → bus.
+
+- **Device**: one controlled unit (a motor, a sensor hub, a screen).
+  Owns exactly one **Kernel** and any number of **Backends**, any numbers of middlewares **Middleware**.
+
+- **Kernel**: owns the device's `State`, `Config`, and `Bus`.
+
 - **Bus**: the GenericBus type. Holds the device's live `State` plus a set of
   `Lane`s (typed channels) that route individual state fields to/from
   backends via `#[route(State::field <= Lane::field)]` / `=>` attributes.
+
 - **Backend**: the part that talks to real hardware (a stepper driver, an
   LED, a sensor). Implements `hal::Backend` directly — there is currently no
   derive macro for it (see fix list).
+
 - **Middleware**: optional command dispatcher for a device. Receives
   `#[create(Device)]`'s `execute(cmd)` calls and routes them to handler
   functions tagged `#[on(MyCommand::Variant)]`.
@@ -59,22 +62,11 @@ Embassy on ARM Cortex-M. It is composed of three crates:
 
 ### 2.1 Module layout
 
-```
-hal/        trait definitions: Device, Kernel, GenericBus, Backend, Middleware,
-            State, Config, Command, Lane, EstopFlag, DeviceState<T>, DeviceConfig<T>
-drivers/    concrete Backend implementations: StepperBackend, LedBackend,
-            TMC2209 / TMC2160 register-level drivers
-transport/  UART/SPI/I2C peripheral wrappers, FastLane/SlowLane bus
+
+hal:        trait definitions: Device, Kernel, GenericBus, Backend, Middleware,
+transport:  UART/SPI/I2C peripheral wrappers, FastLane/SlowLane bus
             implementations, seqlock, host<->MCN transport framing
-motion/     motion planning (trapezoidal profile)
-api/        public command/status types (ActuatorCommand, MotorState, SensorState)
-config/     NodeConfig / ActuatorConfig / HardwareConfig — generated or
-            hand-authored configuration split by meaning
-runtime/    service/orchestration layer (kernel/bus glue); contains a
-            `deprecated/` subtree from a prior actuator design, kept for
-            reference only
-prelude     `oreos_runtime::prelude::*` — the single import most user code needs
-```
+
 
 ### 2.2 Core traits (`hal::*`)
 
@@ -137,6 +129,50 @@ every device's user-defined state/config get wrapped in automatically. They
 carry framework-level bookkeeping (`enabled`, `mode`, `fault`) alongside your
 `custom: T` payload.
 
+### 2.3 Crates `oreos-runtime` re-exports for you
+
+Macro-generated code (and a couple of framework helper macros) reference
+`defmt`, `embassy_time`, and `fugit` by name. Rust only resolves a bare
+`some_crate::...` path against a crate's **own direct dependencies** — so if
+your firmware crate only depends on `oreos-runtime` (which depends on those
+three), a bare path to them fails with "could not find `defmt` in the list of
+imported crates", even though `defmt` is clearly part of the build.
+
+The fix baked into the framework: `oreos-runtime` re-exports them at its
+crate root (`pub use defmt; pub use embassy_time; pub use fugit;`), and all
+macro-generated code reaches them via `::Oreos::defmt::...` etc. instead of a
+bare path. Anything **you** write that needs one of these three directly
+(e.g. a custom `Backend` impl using `fugit::Duration`) should go through the
+same re-export — `oreos::defmt::info!(...)`, `oreos::embassy_time::Timer`,
+`oreos::fugit::Duration` — rather than adding `defmt`/`embassy-time`/`fugit`
+as direct dependencies of your own crate. This keeps version selection for
+those three crates centralized in `oreos-runtime`.
+
+A small consequence: `install_defmt_timestamp!()` (exported from
+`oreos-runtime`, see `src/utils.rs`) wraps the standard
+defmt-panic-handler-plus-timestamp boilerplate every consumer needs once.
+Being a `macro_rules!` macro (not a proc-macro), it resolves its internal
+`defmt`/`embassy_time` references via `$crate::` rather than `::Oreos::`,
+which is the idiomatic way for a `macro_rules!` macro to always point back at
+its defining crate regardless of call site. Typical `main.rs`:
+
+```rust
+pub use Oreos as oreos;
+use oreos::prelude::*;
+
+// expands to: a `#[defmt::panic_handler]` fn that loops forever, plus the
+// `TIME_INITIALIZED` static + `defmt::timestamp!` wiring. Pass an expression
+// to run inside the panic loop instead of an empty one, e.g.
+// `oreos::install_defmt_timestamp!(led.set_high());`
+oreos::install_defmt_timestamp!();
+```
+
+`panic-probe` and `defmt-rtt` need no such treatment — `#[panic_handler]` and
+defmt's global logger are linker-level hooks, not path-resolved, so merely
+having them anywhere in the dependency graph (even only transitively, via
+`oreos-runtime`) is enough. No `use panic_probe as _;` /
+`use defmt_rtt as _;` lines are required in consumer code.
+
 ## 3. `oreos-macros`
 
 All macros are re-exported through `oreos_runtime::prelude`, so user code
@@ -153,7 +189,7 @@ not aliased — see fix list re: the `Oreos` crate name).
 | `#[derive(Middleware)]` | derive | Implements `hal::Middleware` for the struct, delegating to a `callback_match` method — which only exists once you also apply `#[middleware]` below. |
 | `#[middleware]` (on an `impl` block, with `#[on(Command::Variant)]` per fn) | attribute | Generates `callback_match`, which matches every `#[on(...)]`-tagged function against the named command variant. **A `#[derive(Command)]` enum with that variant must already be visible in the same compilation** (see §5 — this lookup is a known fragility point). |
 | `#[create(Device)]` (`#[kernel]`, `#[state]`, `#[config]`, `#[backend]`, `#[middleware]`) | attribute | The big one — see below. |
-| `#[devices] struct Dev { ... }` | attribute | Declares the application's top-level device/peripheral list. Generates a `Devices` struct, a `Context`/`ContextView` dependency-injection type, and `__init_devices__`. Fields tagged `#[device]` get `.start(spawner)` called automatically (anything implementing `MaybeDevcie`); `#[shared]` fields are wrapped for multi-task access; everything else is exclusively owned. |
+| `#[devices] struct Dev { ... }` | attribute | Declares the application's top-level device/peripheral list. Generates a `Devices` struct, a `Context`/`ContextView` dependency-injection type, and `__init_devices__`. Fields tagged `#[device]` get `.start(spawner)` called automatically (anything implementing `MaybeDevice`); `#[shared]` fields are wrapped for multi-task access; everything else is exclusively owned. |
 | `#[app(hal_crate = ...)] mod app { ... }` | attribute | Generates the `#[embassy_executor::main]` entrypoint. Exactly one `#[init(config = ...)]` async fn must return `Devices`. Each `#[loop_(rate = N)]` async fn becomes its own spawned Embassy task running every `N` ms, with `ctx: Context` rewritten so the IDE sees real device types. |
 
 ### 3.1 `#[create(Device)]` in depth
@@ -183,7 +219,7 @@ the macro:
 3. If no field is tagged `#[middleware]`, inserts a hidden
    `__NO_MIDDLEWARE__: NoMiddleware` field instead — middleware is optional.
 4. Emits `impl ArmJoint { pub fn new(...) -> Self }`, `impl hal::Device for
-   ArmJoint`, and `impl hal::MaybeDevcie for ArmJoint` (the `start()` that
+   ArmJoint`, and `impl hal::MaybeDevice for ArmJoint` (the `start()` that
    moves each backend into its static and spawns its task).
 
 **Only one field may carry each of `#[kernel]`, `#[state]`, `#[config]`,
@@ -231,18 +267,6 @@ before relying on them:
   `#[derive(Command)]` site (because that file didn't change) can leave the
   registry empty for an otherwise-unchanged middleware file. A clean rebuild
   always works; incremental rebuilds are the risk case.
-- **Metadata file location is cwd-dependent.** `oreos-macros::metadata::get_file_meta`
-  walks up to 10 parent directories looking for a `Cargo.toml`/`Cargo.lock`
-  *and* an existing `target/` directory; if it doesn't find both, it falls
-  back to a `.oreos/tmp` relative to whatever the compiler's current
-  directory happened to be. In practice this has scattered metadata under
-  unrelated directories outside any project root.
-- **`ordl generate`'s output is currently ahead of what compiles.** The
-  generator and the macro/trait layer drifted apart — see the separate fix
-  list for the specifics (backend trait shape, attribute name mismatch,
-  missing Command/middleware scaffolding). Treat generated files as a
-  starting skeleton to hand-complete, not push-button-correct code, until
-  that list is closed out.
 
 ## 6. Glossary
 

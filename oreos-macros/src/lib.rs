@@ -17,7 +17,30 @@ mod transport;
 */
 
 use proc_macro::TokenStream;
+use sema::Workspace;
+use std::rc::Rc;
+use std::sync::OnceLock;
 use syn::{DeriveInput, ItemImpl, ItemStruct, parse_macro_input, spanned::Spanned};
+
+thread_local! {
+    static WORKSPACE: OnceLock<Rc<Workspace>> = OnceLock::new();
+}
+
+pub(crate) fn workspace() -> Rc<Workspace> {
+    WORKSPACE.with(move |ws| {
+        ws.get_or_init(|| {
+            let manifest_path = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+            Rc::new(
+                sema::analysis(sema::Config {
+                    manifest_path: std::path::Path::new(&manifest_path).join("Cargo.toml"),
+                    target_dir: std::env::temp_dir().join("sema-cache"),
+                })
+                .expect("sema analysis failed"),
+            )
+        })
+        .clone()
+    })
+}
 
 fn save_macro_metadata(name: &str, payload: crate::metadata::ComponentPayload) {
     let span = proc_macro::Span::call_site();

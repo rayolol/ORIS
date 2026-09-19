@@ -10,7 +10,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use robot_arm_firmware_v2::prelude::*;
+//! use oreos::prelude::*;
 //!
 //! #[derive(State)]
 //! struct MyState { }
@@ -94,7 +94,7 @@ pub use crate::hal::{
     KernelError,
     // Bus primitives (now in HAL)
     Lane,
-    MaybeDevcie,
+    MaybeDevice,
     Middleware,
     Mode,
     Severity,

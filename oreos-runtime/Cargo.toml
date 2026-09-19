@@ -6,10 +6,6 @@ edition = "2024"
 [lib]
 name = "Oreos"
 
-[[bin]]
-name = "oreos-runtime"
-path = "src/main.rs"
-
 [dependencies]
 oreos-macros = { path = "../oreos-macros" }
 
