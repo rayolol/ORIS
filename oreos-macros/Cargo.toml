@@ -17,6 +17,6 @@ proc-macro-error = { workspace = true }
 serde = { workspace = true }
 simplehash = { workspace = true }
 serde_json = { workspace = true }
-sema = { path = "../../sema" }
+sema = { git = "https://github.com/rayolol/sema.git" }
 
 
