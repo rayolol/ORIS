@@ -3,11 +3,22 @@ name = "oreos-runtime"
 version = "0.1.0"
 edition = "2024"
 
+
 [lib]
 name = "Oreos"
+test = false
+bench = false
+
+[features]
+panic-handler = ["dep:panic-probe"]
+
 
 [dependencies]
 oreos-macros = { path = "../oreos-macros" }
+
+
+panic-probe = { version = "1", features = ["print-defmt"], optional = true }
+
 
 heapless = { workspace = true }
 nb = { workspace = true }
@@ -26,7 +37,6 @@ arbitrary-int = { workspace = true }
 crc = { workspace = true }
 embassy-executor = { workspace = true }
 embassy-time = { workspace = true }
-panic-probe = { workspace = true }
 enum_dispatch = { workspace = true }
 fugit = { workspace = true }
 defmt = { workspace = true }

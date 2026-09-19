@@ -5,7 +5,8 @@ pub mod drivers; // concrete HAL implementations (StepperBackend, TMC2209)
 pub mod hal; // hardware abstraction traits + shared motor types + bus primitives
 pub mod transport; // bus implementations, seqlock, UART/SPI/I2C peripheral wrappers
 pub mod utils; // utility functions
-
+#[cfg(feature = "panic-handler")]
+use panic_probe as _;
 // ── Prelude ───────────────────────────────────────────────────────────────────
 pub mod prelude; // unified imports for macros, traits, and bus primitives
 
