@@ -65,6 +65,7 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemMod);
     let args = parse_macro_input!(app_attr as AppArgs);
     let hal_crate = &args.hal_crate;
+    let app_module: syn::Ident = input.ident.clone();
 
     let mut generated_tasks = Vec::new();
     let mut spawn_calls = Vec::new();
@@ -215,8 +216,6 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
                         function.block.stmts.remove(i);
                     }
 
-                    let app_module = input.ident.clone();
-
                     // Generated task: owns a StoredContext (Copy), creates a ContextView
                     // on each tick and passes it to the user function.
                     let new_task = quote! {
@@ -225,7 +224,7 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
                             #(#once_calls);*
                             loop {
                                 crate::#app_module::#fn_name(ctx.view()).await;
-                                ::Oreos::embassy_time::Timer::after_millis(#rate).await;
+                                ::oreos::embassy_time::Timer::after_millis(#rate).await;
                             }
                         }
                     };
@@ -254,7 +253,7 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         #[embassy_executor::main]
         async fn main(spawner: embassy_executor::Spawner) {
-            use crate::app::*;
+            use crate::#app_module::*;
             let p = #hal_crate::init(#init_config);
             let dev: devices::Devices = #init_call(p, spawner).await;
             let ctx = devices::__init_devices__(spawner, dev);
