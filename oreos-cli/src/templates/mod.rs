@@ -1,11 +1,12 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+pub mod runtime_base_template;
 
 use crate::casing::{snake_with_suffix, to_pascal_case, to_snake_case};
 
 /// Pretty-prints `tokens` and inserts blank lines between top-level items, since
 /// prettyplease formats a single parsed `syn::File` with no item spacing of its own.
-fn format_code(tokens: TokenStream) -> String {
+pub fn format_code(tokens: TokenStream) -> String {
     let file = syn::parse2(tokens).expect("generated tokens must parse as a valid Rust file");
     let pretty = prettyplease::unparse(&file);
     insert_blank_lines_between_items(&pretty)

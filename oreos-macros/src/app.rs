@@ -215,6 +215,8 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
                         function.block.stmts.remove(i);
                     }
 
+                    let app_module = input.ident.clone();
+
                     // Generated task: owns a StoredContext (Copy), creates a ContextView
                     // on each tick and passes it to the user function.
                     let new_task = quote! {
@@ -222,7 +224,7 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
                         async fn #task_name(mut ctx: crate::devices::StoredContext) {
                             #(#once_calls);*
                             loop {
-                                crate::app::#fn_name(ctx.view()).await;
+                                crate::#app_module::#fn_name(ctx.view()).await;
                                 ::Oreos::embassy_time::Timer::after_millis(#rate).await;
                             }
                         }
