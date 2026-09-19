@@ -1,16 +1,14 @@
 pub mod casing;
-pub mod scheme;
+pub mod diff;
 pub mod ops;
 pub mod scanner;
-pub mod diff;
+pub mod scheme;
 pub mod sync_engine;
 pub mod templates;
 
-use clap::Parser;
 use anyhow::Result;
-use scheme::{ControlNode, Middleware, Device, TypeName, Kernel, BusLane, Backend};
-
-
+use clap::Parser;
+use scheme::{Backend, BusLane, ControlNode, Device, Kernel, Middleware, TypeName};
 
 #[derive(Parser)]
 #[command(name = "ORDL")]
@@ -43,7 +41,7 @@ enum Commands {
         output: String,
     },
 
-    Sync
+    Sync,
 }
 
 #[derive(clap::Subcommand)]
@@ -54,6 +52,8 @@ enum Resource {
     Backend,
     /// Create new middleware
     Middleware,
+    /// Create a new runtime
+    Runtime,
 }
 
 fn main() -> Result<()> {
@@ -61,24 +61,23 @@ fn main() -> Result<()> {
     let mut node = ControlNode::load()?;
 
     match cli.command {
-        Commands::New { resource, from } => {
-            match resource {
-                Some(Resource::Device) => create_device(&mut node)?,
-                Some(Resource::Backend) => {
-                    let target = from.ok_or_else(|| {
-                        anyhow::anyhow!("--target DEVICE is required for backend creation")
-                    })?;
-                    create_backend(&mut node, target)?;
-                }
-                Some(Resource::Middleware) => {
-                    let target = from.ok_or_else(|| {
-                        anyhow::anyhow!("--target DEVICE is required for middleware creation")
-                    })?;
-                    create_middleware(&mut node, target)?;
-                }
-                None => eprintln!("Please specify a resource type: device, backend, or middleware"),
+        Commands::New { resource, from } => match resource {
+            Some(Resource::Device) => create_device(&mut node)?,
+            Some(Resource::Backend) => {
+                let target = from.ok_or_else(|| {
+                    anyhow::anyhow!("--target DEVICE is required for backend creation")
+                })?;
+                create_backend(&mut node, target)?;
             }
-        }
+            Some(Resource::Middleware) => {
+                let target = from.ok_or_else(|| {
+                    anyhow::anyhow!("--target DEVICE is required for middleware creation")
+                })?;
+                create_middleware(&mut node, target)?;
+            }
+            Some(Resource::Runtime) => create_runtime()?,
+            None => eprintln!("Please specify a resource type: device, backend, or middleware"),
+        },
 
         Commands::Show { device } => {
             show_config(&node, device.as_deref())?;
@@ -97,16 +96,52 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+fn create_runtime() -> Result<()> {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+
+    let src_dir = std::env::current_dir()?.join("src");
+    let main_path = src_dir.join("main.rs");
+
+    std::fs::create_dir_all(&src_dir)?;
+
+    if main_path.exists() {
+        let answer = ops::ask("src/main.rs aleady exists, Overwrite it? [y/N]: ")?;
+
+        if !answer.eq_ignore_ascii_case("y") && !answer.eq_ignore_ascii_case("yes") {
+            println!("Cancelled; existing src/main.rs was not changed.");
+            return Ok(());
+        }
+    }
+
+    let code = templates::runtime_base_template::create_base_runtime();
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&main_path)
+        .map_err(|error| {
+            anyhow::anyhow!(
+                "could not create {} without overwriting it: {}",
+                main_path.display(),
+                error
+            )
+        })?;
+    file.write_all(code.as_bytes())?;
+
+    println!("Created {}", main_path.display());
+    Ok(())
+}
 
 fn sync_config(mut node: ControlNode) -> Result<ControlNode> {
-    use std::path::Path;
     use std::env;
+    use std::path::Path;
 
     let target_dir = if Path::new("oreos-runtime/target").exists() {
         Path::new("oreos-runtime/target").to_path_buf()
     } else {
-        let target = env::var("CARGO_TARGET_DIR")
-            .unwrap_or_else(|_| "./target".to_string());
+        let target = env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "./target".to_string());
         Path::new(&target).to_path_buf()
     };
 
@@ -200,7 +235,6 @@ fn show_config(node: &ControlNode, device_name: Option<&str>) -> Result<()> {
 }
 
 fn generate_code(node: &ControlNode, device_name: &str, output_dir: &str) -> Result<()> {
-
     let device = node
         .find_device(device_name)
         .ok_or_else(|| anyhow::anyhow!("Device '{}' not found", device_name))?;
