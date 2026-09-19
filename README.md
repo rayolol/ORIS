@@ -1,6 +1,6 @@
 # OREOS
 
-A modular embedded robotics operating system framework for Rust-based ARM firmware.
+A modular embedded robotics operating system framework for Rust-based firmware.
 
 ## Crates
 
@@ -12,16 +12,12 @@ A modular embedded robotics operating system framework for Rust-based ARM firmwa
 
 Add to your `Cargo.toml`:
 
-```toml
-[dependencies]
-oreos-runtime = { path = "../oreos/oreos-runtime" }
-oreos-macros = { path = "../oreos/oreos-macros" }
-```
-
 Define your application:
 
 ```rust
 use oreos_runtime::prelude::*;
+
+oreos::install_defmt_timestamp!();
 
 #[devices]
 mod devices {
@@ -30,7 +26,7 @@ mod devices {
 
 // generates a ctx dependency injection object containing the peripherals and declared devices
 
-#[app]
+#[app(hal_crate = your_embassy_crate)] // only tested on embassy_stm32
 mod your_app {
     #[init]
     async fn setup(p: Peripherals, s: Spawner) {
@@ -54,18 +50,68 @@ mod your_app {
     async fn loop2(ctx: Context) {
         #[once]
         {
-            //clause that get executed once on start up (not stable)
+            //get executed once on task spawn (not stable)
         }
         //2nd loop code
     }
 }
 ```
 
+## Advanced features 
+
+Define a device:
+
+
+```
+
+    #[create(Device)]
+    struct MyDevice {
+        #[state] foostate: DeviceState<Mystate> // struct derived under state macro #[derive(State)] and wrapped in DeviceConfig<T: Config>
+        #[config] fooconfig: DeviceConfig<MyConfig> // struct derived under state macro #[derive(Config)] and wrapped in DeviceConfig<T: Config>
+        #[bus] barbus: MyBus
+        #[kernel] barkernel: MyKernel
+
+        #[middleware] mymiddleware: MyMiddleware
+
+        #[backend] mybackend: MyBackend
+        #[backend] mybackend2: MyBackend
+    }
+
+    more info on [docs/FRAMEWORK.md]
+    
+```
+    if you want to integrate a device in the app runtime. in the #[devices] ctx struct you add:
+``` 
+    #[devices]
+    mod devices {
+        #[device]
+        dev: MyDevice
+    }
+
+
+
+    ... in app 
+
+    async fn init(p: Peripherals, s: Spawner) {
+
+
+        let dev = MyDevice::new(
+            /* device init logic */
+        );
+
+        dev.start(s);
+
+        Device { dev }
+    }
+```
+
+
+
+
 ## Features
 
 - **Async/await runtime** with Embassy
-- **Hardware abstraction** for STM32 microcontrollers
-- **Motor and stepper drivers** (TMC2209, TMC2160, PWM)
+- **Hardware abstraction** for microcontrollers
 - **Command dispatch** framework for device control
 
 ## License

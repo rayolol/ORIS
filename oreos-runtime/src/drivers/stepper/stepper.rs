@@ -1,10 +1,13 @@
-use crate::{
-    drivers::motor::StepperData,
-    hal::{Backend, Condition, DeviceState, Fault, Lane, Severity, State},
-};
+use crate::hal::{Backend, Condition, DeviceState, Fault, Lane, Severity, State};
 use defmt::trace;
 use embedded_hal::digital::{OutputPin, PinState};
 use heapless::String;
+
+#[derive(Clone, Copy, Default)]
+pub struct StepperData {
+    pub position_steps: i32,
+    pub vel_steps_per_s: i32,
+}
 
 #[derive(Clone, Copy)]
 pub struct StepperConfig {

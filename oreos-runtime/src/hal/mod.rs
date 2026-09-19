@@ -48,7 +48,7 @@ pub enum KernelError {
 }
 
 
-pub trait MaybeDevcie {
+pub trait MaybeDevice {
     fn start(&'static self, spawner: embassy_executor::Spawner);
 }
 

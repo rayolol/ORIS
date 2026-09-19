@@ -557,7 +557,7 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
         #(#backends)*
 
 
-        impl ::Oreos::hal::MaybeDevcie for #name {
+        impl ::Oreos::hal::MaybeDevice for #name {
             fn start(&'static self, spawner: ::embassy_executor::Spawner) {
 
 

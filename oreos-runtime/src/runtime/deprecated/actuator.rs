@@ -1,4 +1,4 @@
-use crate::hal::{Device, DeviceConfig, DeviceState, Kernel, Mode, Config, MaybeDevcie};
+use crate::hal::{Device, DeviceConfig, DeviceState, Kernel, Mode, Config, MaybeDevice};
 use crate::motion::{MotionPlanners, Trapezoidal};
 use super::command::{ActuatorCommand, ApplyCommand};
 use crate::runtime::kernel::{KernelConfig, KernelState};
