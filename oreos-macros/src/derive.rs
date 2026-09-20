@@ -320,7 +320,8 @@ pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
                 estop: ::oreos::hal::EstopFlag,
             ) -> &'static Self {
 
-                static #static_bus: ::static_cell::StaticCell<#name> = ::static_cell::StaticCell::new();
+                static #static_bus: ::oreos::prelude::static_cell::StaticCell<#name> =
+                    ::oreos::prelude::static_cell::StaticCell::new();
                 #static_bus.init(Self {
                     #(#lane_fields,)*
                     #local_state_ident,
@@ -414,7 +415,8 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                 );
 
                 backends.push(quote! {
-                    static #backend_name: ::static_cell::StaticCell<#raw_ty> = ::static_cell::StaticCell::new();
+                    static #backend_name: ::oreos::prelude::static_cell::StaticCell<#raw_ty> =
+                        ::oreos::prelude::static_cell::StaticCell::new();
 
                     #[embassy_executor::task]
                     async fn #task_name(backend: &'static mut #raw_ty) {

@@ -18,7 +18,7 @@ pub fn derive_command(input: DeriveInput) -> TokenStream {
 
     let expanded = quote! {
 
-        impl ::Oreos::hal::Command for #name {}
+        impl ::oreos::hal::Command for #name {}
 
     };
 
