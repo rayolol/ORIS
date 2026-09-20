@@ -37,6 +37,10 @@ enum Commands {
         #[arg(short, long)]
         device: String,
 
+        /// Generate only this backend instead of regenerating the whole device
+        #[arg(short, long)]
+        backend: Option<String>,
+
         #[arg(short, long, default_value = "./src")]
         output: String,
     },
@@ -83,8 +87,16 @@ fn main() -> Result<()> {
             show_config(&node, device.as_deref())?;
         }
 
-        Commands::Generate { device, output } => {
-            generate_code(&node, &device, &output)?;
+        Commands::Generate {
+            device,
+            backend,
+            output,
+        } => {
+            if let Some(backend) = backend {
+                generate_backend_code(&node, &device, &backend, &output)?;
+            } else {
+                generate_code(&node, &device, &output)?;
+            }
         }
 
         Commands::Sync => {
@@ -258,6 +270,63 @@ fn generate_code(node: &ControlNode, device_name: &str, output_dir: &str) -> Res
     let mod_path = format!("{}/mod.rs", device_dir);
     std::fs::write(&mod_path, module_declarations)?;
     println!("Generated {}", mod_path);
+
+    Ok(())
+}
+
+fn generate_backend_code(
+    node: &ControlNode,
+    device_name: &str,
+    backend_name: &str,
+    output_dir: &str,
+) -> Result<()> {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+
+    let device = node
+        .find_device(device_name)
+        .ok_or_else(|| anyhow::anyhow!("Device '{}' not found", device_name))?;
+
+    let backend = device
+        .backends
+        .iter()
+        .find(|backend| backend.name == backend_name)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Backend '{}' is not registered on device '{}'",
+                backend_name,
+                device_name
+            )
+        })?;
+
+    let device_dir = std::path::Path::new(output_dir).join(casing::to_snake_case(&device.name));
+    std::fs::create_dir_all(&device_dir)?;
+
+    let filename = format!(
+        "{}.rs",
+        casing::snake_with_suffix(&backend.name, "backend")
+    );
+    let path = device_dir.join(filename);
+    let content = templates::backend_template(&backend.name);
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                anyhow::anyhow!(
+                    "Refusing to overwrite existing backend {}",
+                    path.display()
+                )
+            } else {
+                anyhow::Error::new(error)
+                    .context(format!("Failed to create {}", path.display()))
+            }
+        })?;
+
+    file.write_all(content.as_bytes())?;
+    println!("Generated {}", path.display());
 
     Ok(())
 }

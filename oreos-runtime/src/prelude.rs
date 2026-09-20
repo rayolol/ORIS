@@ -104,8 +104,6 @@ pub use crate::hal::{
     State as StateTrait,
 };
 
-// -- Utils -------------------------------------------------------------------
-
 // ── Bus implementations from transport ──────────────────────────────────────
 pub use crate::transport::{
     bus::{FastLane, SlowLane},
