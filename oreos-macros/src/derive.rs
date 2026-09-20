@@ -1,24 +1,24 @@
-
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{DataStruct, DeriveInput,ItemImpl,Token, Expr::Field, ItemStruct, parse_macro_input, spanned::Spanned, token::Token};
-
+use syn::{
+    DataStruct, DeriveInput, Expr::Field, ItemImpl, ItemStruct, Token, parse_macro_input,
+    spanned::Spanned, token::Token,
+};
 
 pub fn derive_middleware(input: DeriveInput) -> syn::Result<TokenStream> {
-
     let name = &input.ident;
 
     let expanded = quote! {
-        impl ::Oreos::hal::Middleware<
-            ::Oreos::hal::DeviceState<__DeviceState>,
-            ::Oreos::hal::DeviceConfig<__DeviceConfig>,
+        impl ::oreos::hal::Middleware<
+            ::oreos::hal::DeviceState<__DeviceState>,
+            ::oreos::hal::DeviceConfig<__DeviceConfig>,
             __DeviceCommand
         > for #name {
-            fn command(&mut self, cmd: __DeviceCommand, state: &mut ::Oreos::hal::DeviceState<__DeviceState>, config: &::Oreos::hal::DeviceConfig<__DeviceConfig>) {
+            fn command(&mut self, cmd: __DeviceCommand, state: &mut ::oreos::hal::DeviceState<__DeviceState>, config: &::oreos::hal::DeviceConfig<__DeviceConfig>) {
                 self.callback_match(cmd, state, config);
             }
 
-            fn process(&mut self, state: &mut ::Oreos::hal::DeviceState<__DeviceState>, config: &::Oreos::hal::DeviceConfig<__DeviceConfig>) {
+            fn process(&mut self, state: &mut ::oreos::hal::DeviceState<__DeviceState>, config: &::oreos::hal::DeviceConfig<__DeviceConfig>) {
                 let _ = (state, config);
             }
         }
@@ -27,10 +27,6 @@ pub fn derive_middleware(input: DeriveInput) -> syn::Result<TokenStream> {
     Ok(TokenStream::from(expanded))
 }
 
-
-
-
-
 pub fn derive_config(input: DeriveInput) -> TokenStream {
     let name = &input.ident;
     let _data = &input.data;
@@ -38,12 +34,11 @@ pub fn derive_config(input: DeriveInput) -> TokenStream {
     let expanded = quote! {
         pub type __DeviceConfig = #name;
 
-        impl ::Oreos::hal::Config for #name {}
+        impl ::oreos::hal::Config for #name {}
     };
 
     TokenStream::from(expanded)
 }
-
 
 pub fn derive_state(input: DeriveInput) -> TokenStream {
     let name = &input.ident;
@@ -52,7 +47,7 @@ pub fn derive_state(input: DeriveInput) -> TokenStream {
     let expanded = quote! {
         pub type __DeviceState = #name;
 
-        impl ::Oreos::hal::State for #name {}
+        impl ::oreos::hal::State for #name {}
     };
 
     TokenStream::from(expanded)
@@ -70,17 +65,19 @@ pub fn impl_kernel(input: DeriveInput) -> syn::Result<TokenStream> {
     let mut config_type: Option<syn::Type> = None;
     let mut bus_type: Option<syn::Type> = None;
 
-
     if let syn::Data::Struct(content) = data {
         for field in &content.fields {
             if field.attrs.iter().any(|attr| attr.path().is_ident("state")) {
                 state = Some(field.ident.as_ref().unwrap().clone());
                 state_type = Some(field.ty.clone())
             }
-            if field.attrs.iter().any(|attr| attr.path().is_ident("config")) {
+            if field
+                .attrs
+                .iter()
+                .any(|attr| attr.path().is_ident("config"))
+            {
                 config = Some(field.ident.as_ref().unwrap().clone());
                 config_type = Some(field.ty.clone())
-
             }
             if field.attrs.iter().any(|attr| attr.path().is_ident("bus")) {
                 bus = Some(field.ident.as_ref().unwrap().clone());
@@ -92,12 +89,14 @@ pub fn impl_kernel(input: DeriveInput) -> syn::Result<TokenStream> {
     }
 
     let state = state.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] attribute"))?;
-    let config = config.ok_or_else(|| syn::Error::new_spanned(name, "missing #[config] attribute"))?;
+    let config =
+        config.ok_or_else(|| syn::Error::new_spanned(name, "missing #[config] attribute"))?;
     let bus = bus.ok_or_else(|| syn::Error::new_spanned(name, "missing #[bus] attribute"))?;
-    let state_type = state_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] field"))?;
-    let config_type = config_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[config] field"))?;
+    let state_type =
+        state_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] field"))?;
+    let config_type =
+        config_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[config] field"))?;
     let bus_type = bus_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[bus] field"))?;
-
 
     let expanded = quote! {
         impl #name {
@@ -114,12 +113,12 @@ pub fn impl_kernel(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-        impl ::Oreos::hal::Kernel for #name {
+        impl ::oreos::hal::Kernel for #name {
 
             type State = #state_type;
             type Config = #config_type;
 
-            fn init(&mut self, _config: &Self::Config) -> Result<(), ::Oreos::hal::KernelError> {
+            fn init(&mut self, _config: &Self::Config) -> Result<(), ::oreos::hal::KernelError> {
                 Ok(())
             }
 
@@ -139,7 +138,6 @@ pub fn impl_kernel(input: DeriveInput) -> syn::Result<TokenStream> {
 
     Ok(TokenStream::from(expanded))
 }
-
 
 enum RouteArg {
     In {
@@ -220,7 +218,6 @@ fn extract_route_list(meta: &syn::Meta) -> syn::Result<Vec<RouteArg>> {
 }
 
 pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
-
     let name = &input.ident;
     let data = &input.data;
 
@@ -245,21 +242,32 @@ pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
     } else {
-        return Err(syn::Error::new_spanned(name, "impl_bus only supports structs"));
+        return Err(syn::Error::new_spanned(
+            name,
+            "impl_bus only supports structs",
+        ));
     }
 
     let static_bus = quote::format_ident!("__{}__", name);
 
-    let local_state = local_state.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] field"))?;
-    let local_state_ident = local_state_ident.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] field"))?;
+    let local_state =
+        local_state.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] field"))?;
+    let local_state_ident =
+        local_state_ident.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] field"))?;
 
     // Separate routes into update (<=) and write (=>)
     let mut update_code_vec = Vec::new();
     let mut write_code_vec = Vec::new();
 
     for (lane_field, _, routes) in &route_args_by_field {
-        let in_routes: Vec<_> = routes.iter().filter(|r| matches!(r, RouteArg::In { .. })).collect();
-        let out_routes: Vec<_> = routes.iter().filter(|r| matches!(r, RouteArg::Out { .. })).collect();
+        let in_routes: Vec<_> = routes
+            .iter()
+            .filter(|r| matches!(r, RouteArg::In { .. }))
+            .collect();
+        let out_routes: Vec<_> = routes
+            .iter()
+            .filter(|r| matches!(r, RouteArg::Out { .. }))
+            .collect();
 
         // Generate update code for <= (state <= lane)
         if !in_routes.is_empty() {
@@ -295,15 +303,21 @@ pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
         }
     }
 
-    let lane_fields: Vec<_> = route_args_by_field.iter().map(|(f, _, _)| f.clone()).collect();
-    let lanes_types: Vec<_> = route_args_by_field.iter().map(|(_, t, _)| t.clone()).collect();
+    let lane_fields: Vec<_> = route_args_by_field
+        .iter()
+        .map(|(f, _, _)| f.clone())
+        .collect();
+    let lanes_types: Vec<_> = route_args_by_field
+        .iter()
+        .map(|(_, t, _)| t.clone())
+        .collect();
 
     let expanded = quote! {
         impl #name {
             pub fn new(
                 #(#lane_fields: #lanes_types,)*
                 #local_state_ident: #local_state,
-                estop: ::Oreos::hal::EstopFlag,
+                estop: ::oreos::hal::EstopFlag,
             ) -> &'static Self {
 
                 static #static_bus: ::static_cell::StaticCell<#name> = ::static_cell::StaticCell::new();
@@ -315,8 +329,8 @@ pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-        impl ::Oreos::hal::GenericBus<#local_state> for #name {
-            fn estop(&self) -> &::Oreos::hal::EstopFlag {
+        impl ::oreos::hal::GenericBus<#local_state> for #name {
+            fn estop(&self) -> &::oreos::hal::EstopFlag {
                 &self.estop
             }
 
@@ -339,10 +353,8 @@ pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
     Ok(TokenStream::from(expanded))
 }
 
-
 // #[create(Device)]
 pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
-
     let name = &input.ident;
 
     let mut backends: Vec<proc_macro2::TokenStream> = Vec::new();
@@ -373,19 +385,22 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
 
     // Validate required fields before generating any code
 
-
     if let syn::Data::Struct(ref mut data_struct) = input.data {
-
         for field in data_struct.fields.iter_mut() {
-
-            if field.attrs.iter().any(|attr| attr.path().is_ident("backend")) {
+            if field
+                .attrs
+                .iter()
+                .any(|attr| attr.path().is_ident("backend"))
+            {
                 let raw_ty = field.ty.clone();
                 let field_name = field.ident.as_ref().unwrap();
 
                 field.attrs.retain(|a| !a.path().is_ident("backend"));
 
-                let backend_name = quote::format_ident!("__{}_BACKEND__", field_name.to_string().to_uppercase());
-                let task_name = quote::format_ident!("__{}_TASK__", field_name.to_string().to_uppercase());
+                let backend_name =
+                    quote::format_ident!("__{}_BACKEND__", field_name.to_string().to_uppercase());
+                let task_name =
+                    quote::format_ident!("__{}_TASK__", field_name.to_string().to_uppercase());
 
                 backend_names.push(backend_name.clone());
                 backend_tasks.push(task_name.clone());
@@ -406,20 +421,28 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                         loop {
                             backend.tick().await;
                             //temporary 
-                            ::Oreos::embassy_time::Timer::after_millis(10).await;
+                            ::oreos::embassy_time::Timer::after_millis(10).await;
                         }
                     }
                 });
             }
 
-            if field.attrs.iter().any(|attr| attr.path().is_ident("middleware")) {
+            if field
+                .attrs
+                .iter()
+                .any(|attr| attr.path().is_ident("middleware"))
+            {
                 field.attrs.retain(|a| !a.path().is_ident("middleware"));
 
                 middleware_ident = Some(field.ident.as_ref().unwrap().clone());
                 middleware_type = Some(field.ty.clone())
             }
 
-            if field.attrs.iter().any(|attr| attr.path().is_ident("kernel")) {
+            if field
+                .attrs
+                .iter()
+                .any(|attr| attr.path().is_ident("kernel"))
+            {
                 field.attrs.retain(|a| !a.path().is_ident("kernel"));
 
                 kernel_ident = Some(field.ident.as_ref().unwrap().clone());
@@ -433,13 +456,16 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                 state_type = Some(field.ty.clone());
             }
 
-            if field.attrs.iter().any(|attr| attr.path().is_ident("config")) {
+            if field
+                .attrs
+                .iter()
+                .any(|attr| attr.path().is_ident("config"))
+            {
                 field.attrs.retain(|a| !a.path().is_ident("config"));
 
                 config_ident = Some(field.ident.as_ref().unwrap().clone());
                 config_type = Some(field.ty.clone());
             }
-
 
             // if field.attrs.iter().any(|attr| attr.path().is_ident("command")) {
             //     field.attrs.retain(|a| !a.path().is_ident("command"));
@@ -447,20 +473,20 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
             //     command_ident = Some(field.ident.as_ref().unwrap().clone());
             //     command_type = Some(field.ty.clone());
             // }
-
-    
         }
-
 
         if middleware_ident.is_none() {
             is_default_middleware = true;
             let middleware_field = syn::Field {
                 attrs: Vec::new(),
                 vis: syn::Visibility::Inherited,
-                ident: Some(syn::Ident::new("__NO_MIDDLEWARE__", proc_macro2::Span::call_site())),
+                ident: Some(syn::Ident::new(
+                    "__NO_MIDDLEWARE__",
+                    proc_macro2::Span::call_site(),
+                )),
                 mutability: syn::FieldMutability::None,
                 colon_token: Some(syn::Token![:](proc_macro2::Span::call_site())),
-                ty: syn::parse_quote!(::Oreos::hal::NoMiddleware)
+                ty: syn::parse_quote!(::oreos::hal::NoMiddleware),
             };
 
             if let syn::Fields::Named(ref mut fields) = data_struct.fields {
@@ -468,24 +494,27 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
             }
             middleware_type = Some(middleware_field.ty.clone());
             middleware_ident = Some(middleware_field.ident.as_ref().unwrap().clone());
-
         }
     } else {
-        proc_macro_error::abort!(
-            name, "#[create(Device)] only works on structs"
-        );
-    } 
+        proc_macro_error::abort!(name, "#[create(Device)] only works on structs");
+    }
 
-    let kernel_type = kernel_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[kernel] field"))?;
-    let kernel_ident = kernel_ident.ok_or_else(|| syn::Error::new_spanned(name, "missing #[kernel] field"))?;
-    let state_type = state_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] field"))?;
-    let state_ident = state_ident.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] field"))?;
-    let config_type = config_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[config] field"))?;
-    let config_ident = config_ident.ok_or_else(|| syn::Error::new_spanned(name, "missing #[config] field"))?;
-    
+    let kernel_type =
+        kernel_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[kernel] field"))?;
+    let kernel_ident =
+        kernel_ident.ok_or_else(|| syn::Error::new_spanned(name, "missing #[kernel] field"))?;
+    let state_type =
+        state_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] field"))?;
+    let state_ident =
+        state_ident.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] field"))?;
+    let config_type =
+        config_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[config] field"))?;
+    let config_ident =
+        config_ident.ok_or_else(|| syn::Error::new_spanned(name, "missing #[config] field"))?;
+
     let middleware_init = if is_default_middleware {
         quote! {
-            #middleware_ident: ::Oreos::hal::NoMiddleware::default()
+            #middleware_ident: ::oreos::hal::NoMiddleware::default()
         }
     } else {
         quote! {
@@ -511,7 +540,7 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                 #config_ident: #config_type,
                 #middleware_param
             ) -> Self {
-                ::Oreos::defmt::info!("creating device: {}", stringify!(#name));
+                ::oreos::defmt::info!("creating device: {}", stringify!(#name));
                 Self {
                     #(#field_names: ::core::cell::UnsafeCell::new(Some(#field_names)),)*
                     #kernel_ident,
@@ -530,12 +559,12 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
 
 
 
-        impl ::Oreos::hal::Device for #name {
+        impl ::oreos::hal::Device for #name {
             type Kernel = #kernel_type;
             type Command = __DeviceCommand;
 
-            fn tick(&mut self, _dt: ::Oreos::fugit::Duration<u32, 1, 1000>) {
-                ::Oreos::defmt::trace!("device tick: {}", stringify!(#name));
+            fn tick(&mut self, _dt: ::oreos::fugit::Duration<u32, 1, 1000>) {
+                ::oreos::defmt::trace!("device tick: {}", stringify!(#name));
 
                 self.#kernel_ident.state = self.#state_ident.custom;
                 self.#kernel_ident.tick();
@@ -548,7 +577,7 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
             }
 
             fn execute(&mut self, cmd: Self::Command) {
-                ::Oreos::defmt::debug!("device execute command: {}", stringify!(#name));
+                ::oreos::defmt::debug!("device execute command: {}", stringify!(#name));
                 self.#middleware_ident.command(cmd, &mut self.#state_ident, &self.#config_ident);
             }
         }
@@ -557,7 +586,7 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
         #(#backends)*
 
 
-        impl ::Oreos::hal::MaybeDevice for #name {
+        impl ::oreos::hal::MaybeDevice for #name {
             fn start(&'static self, spawner: ::embassy_executor::Spawner) {
 
 
@@ -567,7 +596,7 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
 
                 #(spawner.spawn(#backend_tasks(#field_names).unwrap());)*
 
-                
+
 
 
 
@@ -590,13 +619,11 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-        
+
 
 
 
     };
 
     Ok(TokenStream::from(expanded))
-
 }
-
