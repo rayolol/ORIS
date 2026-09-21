@@ -18,6 +18,8 @@ pub fn derive_command(input: DeriveInput) -> TokenStream {
 
     let expanded = quote! {
 
+        pub type __DeviceCommand = #name;
+
         impl ::oreos::hal::Command for #name {}
 
     };
