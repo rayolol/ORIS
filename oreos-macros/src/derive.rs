@@ -513,6 +513,8 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
         config_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[config] field"))?;
     let config_ident =
         config_ident.ok_or_else(|| syn::Error::new_spanned(name, "missing #[config] field"))?;
+    let middleware_type = middleware_type
+        .ok_or_else(|| syn::Error::new_spanned(name, "missing #[middleware] field"))?;
 
     let middleware_init = if is_default_middleware {
         quote! {
@@ -527,7 +529,6 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
     let middleware_param = if is_default_middleware {
         quote! {}
     } else {
-        let middleware_type = middleware_type.as_ref().unwrap();
         quote! {
             #middleware_ident: #middleware_type,
         }
@@ -571,7 +572,15 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                 self.#kernel_ident.state = self.#state_ident.custom;
                 self.#kernel_ident.tick();
                 self.#state_ident.custom = self.#kernel_ident.feedback();
-                self.#middleware_ident.process(&mut self.#state_ident, &self.#config_ident);
+                <#middleware_type as ::oreos::hal::Middleware<
+                    #state_type,
+                    #config_type,
+                    <Self as ::oreos::hal::Device>::Command,
+                >>::process(
+                    &mut self.#middleware_ident,
+                    &mut self.#state_ident,
+                    &self.#config_ident,
+                );
             }
 
             fn kernel(&mut self) -> &mut Self::Kernel {
@@ -580,7 +589,16 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
 
             fn execute(&mut self, cmd: Self::Command) {
                 ::oreos::defmt::debug!("device execute command: {}", stringify!(#name));
-                self.#middleware_ident.command(cmd, &mut self.#state_ident, &self.#config_ident);
+                <#middleware_type as ::oreos::hal::Middleware<
+                    #state_type,
+                    #config_type,
+                    <Self as ::oreos::hal::Device>::Command,
+                >>::command(
+                    &mut self.#middleware_ident,
+                    cmd,
+                    &mut self.#state_ident,
+                    &self.#config_ident,
+                );
             }
         }
 
