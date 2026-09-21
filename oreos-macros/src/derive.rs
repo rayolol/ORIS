@@ -422,7 +422,7 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                     async fn #task_name(backend: &'static mut #raw_ty) {
                         loop {
                             backend.tick().await;
-                            //temporary 
+                            //temporary
                             ::oreos::embassy_time::Timer::after_millis(10).await;
                         }
                     }
