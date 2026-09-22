@@ -1,124 +1,46 @@
 # OREOS
 
-A modular embedded robotics operating system framework for Rust-based firmware.
+OREOS (**Open Robotics Embedded Operating System**) is the embedded firmware
+layer of ORIS (**Open Robotics Interface Standard**). It provides Rust and
+Embassy building blocks for describing a control node as a runtime containing
+typed, active devices.
 
-## Crates
+OREOS is currently experimental. The device/runtime path compiles and is being
+validated in the first real firmware project, but the CLI, macro communication,
+hardware configuration, diagnostics, and public API are still evolving.
 
-- **oreos-runtime**: Core framework with HAL abstractions, kernel, drivers, and motion control for embedded systems
-- **oreos-macros**: Procedural macros for defining applications, devices, middleware, and commands
-- **oreos-cli**: Command-line tool (`ordl`) for scaffolding and code generation
+## Repository layout
 
-## Quick Start
+- `oreos-runtime`: `no_std` HAL traits, state/config wrappers, buses, transports,
+  drivers, and runtime support.
+- `oreos-macros`: device, kernel, bus, application, and runtime code generation.
+- `oreos-cli`: the `ordl` host tool and the `OREOS.toml` project model.
+- `docs`: current behavior, practical workflows, limitations, and roadmap.
 
-Add to your `Cargo.toml`:
+## Start here
 
-Define your application:
+- [Framework model](docs/FRAMEWORK.md): what a node, device, kernel, bus,
+  backend, and middleware mean today.
+- [Building a system](docs/BUILDING_A_SYSTEM.md): scoping rules and the complete
+  node/device workflow.
+- [Limitations and roadmap](docs/LIMITATIONS_AND_ROADMAP.md): what is incomplete,
+  what is unsafe to assume, and the planned Sema and hardware-configuration work.
 
-```rust
-use oreos_runtime::prelude::*;
+## Current CLI path
 
-oreos::install_defmt_timestamp!();
+From an OREOS firmware project containing `OREOS.toml`:
 
-#[devices]
-mod devices {
-    led: Output<'static>
-}
-
-// generates a ctx dependency injection object containing the peripherals and declared devices
-
-#[app(hal_crate = your_embassy_crate)] // only tested on embassy_stm32
-mod your_app {
-    #[init]
-    async fn setup(p: Peripherals, s: Spawner) {
-        // init code. 
-        // devices are created here 
-
-        let led = Output::new(/* embassy's pin init logic*/)
-
-        Devices {
-            led
-        }
-    }
-
-    #[loop_(rate = 1ms)]
-    async fn loop(ctx: Context) {
-        //loop code 
-    }
-
-
-    #[loop_(rate = 10)]
-    async fn loop2(ctx: Context) {
-        #[once]
-        {
-            //get executed once on task spawn (not stable)
-        }
-        //2nd loop code
-    }
-}
+```text
+ordl new device
+ordl new --from TopHeater backend
+ordl generate --device TopHeater
+ordl generate --device TopHeater --backend HeaterControl
 ```
 
-## Advanced features 
-
-Define a device:
-
-
-```
-
-    #[create(Device)]
-    struct MyDevice {
-        #[state] foostate: DeviceState<Mystate> // struct derived under state macro #[derive(State)] and wrapped in DeviceConfig<T: Config>
-        #[config] fooconfig: DeviceConfig<MyConfig> // struct derived under state macro #[derive(Config)] and wrapped in DeviceConfig<T: Config>
-        #[bus] barbus: MyBus
-        #[kernel] barkernel: MyKernel
-
-        #[middleware] mymiddleware: MyMiddleware
-
-        #[backend] mybackend: MyBackend
-        #[backend] mybackend2: MyBackend
-    }
-
-    more info on [docs/FRAMEWORK.md]
-    
-```
-    if you want to integrate a device in the app runtime. in the #[devices] ctx struct you add:
-``` 
-    #[devices]
-    mod devices {
-        #[device]
-        dev: MyDevice
-    }
-
-
-
-    ... in app 
-
-    async fn init(p: Peripherals, s: Spawner) {
-
-
-        let dev = MyDevice::new(
-            /* device init logic */
-        );
-
-        dev.start(s);
-
-        Device { dev }
-    }
-```
-
-
-
-
-## Features
-
-- **Async/await runtime** with Embassy
-- **Hardware abstraction** for microcontrollers
-- **Command dispatch** framework for device control
+The full-device generator currently overwrites its generated files. The
+backend-only form is create-only and refuses to overwrite an existing backend.
+Read the workflow guide before regenerating edited device code.
 
 ## License
 
-Licensed under either of:
-
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-
-at your option.
+Licensed under either Apache-2.0 or MIT, at your option.
