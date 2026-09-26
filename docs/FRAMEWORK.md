@@ -89,19 +89,25 @@ ordinary runtime resource.
 ## 3. Device components
 
 ```text
-command ──> middleware ──> DeviceState / DeviceConfig
-                              │
-application tick ──> device ──┤
-                              ▼
-                           kernel
-                              │
-                              ▼
-                         bus + lanes
-                              │
-                     backend task(s)
-                              │
-                              ▼
-                           hardware
+external command ──────────────> middleware callback
+                                      │
+application tick ─> generated kernel/device orchestration
+                                      │
+                   GenericBus::update │ GenericBus::write
+                                      ▼
+                         DeviceState / DeviceConfig
+                                      │
+                            middleware.process
+                                      │
+                            backend state/config
+                                      │
+                               backend task(s)
+                                      │
+                       generated IO/transport access
+                                      │
+                    resource owner / TransportServer
+                                      │
+                                   hardware
 ```
 
 This diagram is a responsibility map, not fully automatic data wiring. The
@@ -156,8 +162,10 @@ migration and should be treated as unstable.
 
 ### Kernel
 
-The kernel owns the device's control behavior. The current `#[derive(Kernel)]`
-implementation:
+The kernel is framework plumbing. It must not contain application-specific
+control behavior. The intended generated execution path coordinates bus state
+translation and invokes middleware; middleware owns application processing and
+callbacks. The current `#[derive(Kernel)]` implementation:
 
 1. checks the bus e-stop flag;
 2. pulls incoming lane data into its state with `bus.update`;
@@ -165,7 +173,10 @@ implementation:
 4. exposes feedback as a copy of its state.
 
 The generated device copies `DeviceState.custom` into the kernel before the
-kernel tick and copies kernel feedback back afterward.
+kernel tick and copies kernel feedback back afterward. It currently calls
+middleware after that kernel tick, so the intended
+`bus.update -> middleware.process -> bus.write` ordering is not implemented
+yet.
 
 ### Bus and lanes
 
@@ -199,12 +210,25 @@ into lane data during `write`.
 A backend is hardware-facing behavior owned by a device: GPIO/PWM output,
 temperature acquisition, a motor driver, and similar work.
 
+A backend retains `&'static` access to its bus-owned state and configuration;
+it does not create a second authoritative copy of either. It owns only private
+algorithm/runtime data. Its hardware access is injected separately by the
+midlayer hardware binding and may contain direct IO capabilities,
+`TransportClient`s, or both. A backend does not need to own the raw physical
+peripheral.
+
 Backends implement `hal::Backend` manually. `#[create(Device)]` moves each
 backend into static storage and spawns one Embassy task per backend. The
 generated task currently calls `tick()` every 10 ms. It does not automatically
 call `Backend::init` or `Backend::config`, and it currently ignores the value
 returned by `tick`; the application/backend wiring must handle useful data via
-lanes or other explicit channels.
+the state/config lanes.
+
+Board profiles describe available hardware. Node bindings map a backend's
+logical access requirements onto that hardware, and the midlayer generates the
+typed access value passed to the backend constructor. For shared SPI, I2C, or
+1-Wire buses, one transport server owns the physical peripheral and generated
+clients identify the intended slave.
 
 ## 4. Node startup and execution flow
 

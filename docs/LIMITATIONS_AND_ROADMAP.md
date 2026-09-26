@@ -242,13 +242,38 @@ The goal is safe incremental work, not perpetual full regeneration.
 
 ### Phase 4: complete device lifecycle behavior
 
-- Define when backend `init` and `config` run.
-- Make backend scheduling configurable.
-- Route backend outputs and health into the bus/device state deliberately.
-- Define device/kernel initialization ordering.
-- Use the `dt` supplied to `Device::tick`.
-- Add extension points for application-specific kernel logic.
-- Validate role cardinality and backend/middleware relationships.
+- [ ] Make every backend constructor establish its hardware-safe state before
+  returning; for example, a heater backend must drive its SSR OFF immediately.
+- [ ] Give every backend instance `&'static` references to the bus-owned state
+  and configuration channels it consumes; do not create a second authoritative
+  state/config copy inside the backend.
+- [ ] Keep `MaybeDevice::start` synchronous: move each already-wired backend
+  into its `StaticCell` and spawn its generated task.
+- [ ] At the beginning of the generated backend task, obtain the initial
+  configuration snapshot through the backend's configuration channel and call
+  `backend.init(init_config).await` exactly once before entering the repeating
+  `tick()` loop. If the trait changes to parameterless `init`, require that
+  method to perform the same initial channel read.
+- [ ] If backend initialization fails, publish an initialization fault, keep the
+  hardware safe, and return without ever calling `tick()`.
+- [ ] After successful initialization, call `tick()` at the configured backend
+  rate until shutdown or fault policy stops the task.
+- [ ] Version configuration snapshots and define when later calls to
+  `Backend::config` run as newer revisions arrive, without repeating
+  initialization.
+- [ ] Preserve `State` and `Config` as the only backend data-flow contracts; do
+  not introduce separate command/feedback transport types.
+- [ ] Add an atomic field-update/merge operation to the lane abstraction. The
+  bus and a backend may update different fields of one state, so generated
+  read-modify-write sequences must not lose updates and `FastLane` must safely
+  coordinate multiple writers.
+- [ ] Make backend scheduling configurable.
+- [ ] Route backend outputs and health into the bus/device state deliberately.
+- [ ] Define device/kernel initialization ordering.
+- [ ] Use the `dt` supplied to `Device::tick`.
+- [ ] Make the generated kernel/device path invoke middleware without placing
+  application-specific behavior in the kernel.
+- [ ] Validate role cardinality and backend/middleware relationships.
 
 ### Phase 5: improve runtime ownership
 
@@ -291,6 +316,32 @@ TopHeater.TemperatureSense.spi -> SPIx
 TopHeater.TemperatureSense.cs  -> pin PBz
 ```
 
+Backends declare logical access requirements, not concrete pins or MCU
+peripheral types. The midlayer binding resolves those requirements and
+generates the access value injected into each backend. An access value may
+contain direct IO handles, transport clients, or both:
+
+```text
+backend logical requirements
+        ↓
+midlayer pin/peripheral assignment
+        ├── direct GPIO/timer/ADC capability
+        ├── target-aware TransportClient
+        └── combined generated access bundle
+        ↓
+backend constructor
+```
+
+For a shared bus, one `TransportServer` owns and serializes the physical
+peripheral. Generated clients carry or select the intended slave target. This
+keeps the physical bus accessible through controlled high-level clients without
+giving several backends mutable ownership of the raw peripheral.
+
+The backend template should remain hardware-agnostic. ORDL/Sema generates the
+concrete access bundle only after the board profile and node binding are known.
+State and config remain the runtime data-flow contracts; hardware access is an
+injected capability, not another state channel.
+
 This layer should validate:
 
 - exclusive pin/peripheral ownership;
@@ -298,6 +349,7 @@ This layer should validate:
 - required capabilities for each backend;
 - timer/DMA/interrupt conflicts;
 - deliberate sharing;
+- transport target validity and response correlation;
 - late changes that would invalidate another device.
 
 The result should feed typed application wiring or generated constructors while
@@ -307,6 +359,7 @@ The distinction is essential:
 
 - the board profile is hardware capability;
 - the binding is this machine's allocation;
+- the generated access bundle is how a backend reaches that allocation;
 - `DeviceConfig` is device behavior/policy;
 - runtime initialization constructs the concrete values.
 
