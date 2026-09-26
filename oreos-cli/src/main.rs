@@ -302,12 +302,10 @@ fn generate_backend_code(
     let device_dir = std::path::Path::new(output_dir).join(casing::to_snake_case(&device.name));
     std::fs::create_dir_all(&device_dir)?;
 
-    let filename = format!(
-        "{}.rs",
-        casing::snake_with_suffix(&backend.name, "backend")
-    );
+    let filename = format!("{}.rs", casing::snake_with_suffix(&backend.name, "backend"));
     let path = device_dir.join(filename);
-    let content = templates::backend_template(&backend.name);
+    // FIXME: IO access is not yet implemented for backends, so we pass None for now. Once it is implemented, we can pass the correct IO access type here, coming from backend.periph_access.
+    let content = templates::backend_template(&backend.name, None);
 
     let mut file = OpenOptions::new()
         .write(true)
@@ -315,13 +313,9 @@ fn generate_backend_code(
         .open(&path)
         .map_err(|error| {
             if error.kind() == std::io::ErrorKind::AlreadyExists {
-                anyhow::anyhow!(
-                    "Refusing to overwrite existing backend {}",
-                    path.display()
-                )
+                anyhow::anyhow!("Refusing to overwrite existing backend {}", path.display())
             } else {
-                anyhow::Error::new(error)
-                    .context(format!("Failed to create {}", path.display()))
+                anyhow::Error::new(error).context(format!("Failed to create {}", path.display()))
             }
         })?;
 

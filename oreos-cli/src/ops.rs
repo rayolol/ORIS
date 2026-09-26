@@ -47,7 +47,8 @@ pub fn generate(device: &Device) -> Result<Vec<(String, String)>> {
 
     for backend in backends.iter() {
         let filename = format!("{}.rs", snake_with_suffix(backend, "backend"));
-        files.push((filename, backend_template(backend)));
+        //FIXME: IO access is not yet implemented for backends, so we pass None for now. Once it is implemented, we can pass the correct IO access type here.
+        files.push((filename, backend_template(backend, None)));
     }
 
     for middleware in middlewares.iter() {

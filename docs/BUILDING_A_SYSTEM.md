@@ -61,14 +61,14 @@ Keep it as a normal Rust type, runtime resource, or backend when it is:
 
 | Part | Likely scope | Reason |
 |---|---|---|
-| Top heating zone | `TopHeater` device | Independent target, feedback, control, output, and fault behavior. |
-| Bottom heating zone | Separate device | Same reason if it is controlled and faulted independently. |
-| Dedicated top thermocouple | Backend inside `TopHeater` | It exists to provide that device's feedback. |
-| Shared chamber safety sensor | Separate monitor device or node-level service | Its data and faults affect several devices. |
-| Heater PWM/SSR output | Backend inside the heater device | Hardware-facing mechanism, not machine policy. |
-| PID calculation | Kernel logic or helper type | Algorithmic policy, not an independently active subsystem. |
+| Complete thermal controller | One `OvenController` device | Both zones share profile, coordination, and global fault behavior. |
+| Top and bottom heater zones | Two instances of one `HeaterBackend` type | Each instance has independent PID runtime and SSR access but shares one implementation. |
+| Three MAX31855 converters | One `Max31855ArrayBackend` | One acquisition behavior publishes top, bottom, and optional center measurements through state. |
+| Local heater PID | Private state inside each heater backend | It closes the local actuator loop without duplicating backend types. |
+| Cascading/profile control | `OvenMiddleware` application code | It observes device state and updates both heater targets; it is not kernel code. |
+| SPI and SSR access | Midlayer-generated backend access values | The binding supplies transport clients and/or direct IO capabilities without duplicating raw peripheral ownership. |
 | Status LED | Plain runtime resource | Usually no state machine or fault boundary is needed. |
-| User interface | Device if active and stateful | It may have commands, state, periodic updates, and hardware backends. |
+| ESP32 user interface | Separate node/firmware | It has its own board, runtime, display/input devices, and communicates with the controller over UART. |
 
 If two parts must always change, initialize, stop, and fail together, begin with
 one device. Split them later when independent ownership becomes valuable.
@@ -82,7 +82,8 @@ Before running the CLI, write down:
 - runtime resources needed during startup;
 - candidate devices;
 - each device's state, configuration, commands, control rate, and fault boundary;
-- which physical interfaces each device ultimately owns.
+- which logical IO/transport capabilities each backend requires; concrete pins
+  and peripherals are selected later by the midlayer binding.
 
 The current tool does not validate board pins or peripheral conflicts. Keep a
 temporary hardware allocation table in the firmware repository until the
@@ -321,26 +322,32 @@ listed in the roadmap lands.
 
 ### Step 4: bus and lanes
 
-Define typed boundaries between control state and backend data. A lane should
-carry data with one clear producer/consumer relationship.
+Define typed state/config boundaries between the device and its backends.
+Different components may update different fields, so the lane implementation
+must merge those updates atomically rather than treating the fields as separate
+command and feedback protocols.
 
 Use incoming routes for measurements and outgoing routes for actuator requests.
 Construct the lanes and bus in application initialization.
 
 ### Step 5: kernel
 
-The kernel is where device policy belongs: state evolution, control laws,
-limits, and coordination between incoming feedback and outgoing requests.
-
-The current derive generates fixed update/write behavior. If the device needs
-custom control calculations, keep them in explicit helper methods called by the
-application or wait for the kernel customization surface to be expanded; do not
-assume the derive currently invents control logic.
+The kernel is the framework-generated execution bridge. Keep device policy,
+control laws, limits, and callbacks out of it. The intended pipeline is state
+update, middleware processing, and state write. The current derive does not yet
+implement that complete ordering, which is a framework limitation rather than
+an invitation to place application code in the kernel.
 
 ### Step 6: backends
 
 A backend should translate between typed device data and one hardware mechanism.
 It should not decide machine-wide policy.
+
+The backend retains static references to its bus-owned state and config. Its
+hardware access is injected as a generated midlayer access value. Depending on
+the resolved binding, that value can contain direct IO capabilities,
+target-aware transport clients, or both; the backend does not choose concrete
+pins or claim shared raw peripherals.
 
 Implement:
 
@@ -351,20 +358,27 @@ Implement:
 
 Remember that generated backend tasks currently call only `tick` at a fixed
 10 ms interval. Call initialization/configuration explicitly where needed and
-connect outputs through lanes or other explicit channels.
+connect runtime data through the backend's state/config lanes.
 
-### Step 7: middleware, only if needed
+### Step 7: middleware
 
-Middleware belongs between external commands and device state/configuration.
-Do not introduce it merely to run the control loop; that is the kernel's role.
+Middleware contains application-specific device processing and command
+callbacks. It reads the state assembled by `GenericBus`, runs coordination or
+control policy, and updates state/config fields that the bus translates back to
+backends. The kernel invokes this application code but does not contain it.
 
 ## 8. Assemble the device
 
-Application initialization performs the actual ownership transfer:
+Today, application initialization performs the actual ownership transfer. The
+planned midlayer hardware binding will generate the concrete access values and
+constructor wiring after validating the board allocation:
 
 ```text
 MCU peripherals
-    -> concrete hardware drivers
+    -> high-level resource owners / transport servers
+board profile + node binding
+    -> generated backend IO/transport access values
+access values + state/config references
     -> backend instances
 lanes
     -> bus
@@ -376,9 +390,9 @@ device
     -> Devices returned by #[init]
 ```
 
-This is intentionally application code. The framework cannot choose pin
-assignments, calibration, safe defaults, or runtime policy on behalf of the
-firmware author.
+Runtime policy and safe behavior remain application decisions. The midlayer may
+generate validated pin/peripheral construction and access injection from the
+explicit binding; it must not invent those choices.
 
 ## 9. Schedule and coordinate the node
 

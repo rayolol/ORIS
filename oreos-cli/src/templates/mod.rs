@@ -111,17 +111,41 @@ pub fn middleware_template(name: &str, device: &str) -> String {
     format_code(tokens)
 }
 
-pub fn backend_template(name: &str) -> String {
+pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
     let pascal = to_pascal_case(name);
     let name = format_ident!("{}", pascal);
     let backend_state = format_ident!("{}State", pascal);
+    let backend_config = format_ident!("{}Config", pascal);
     let condition = format_ident!("{}Condition", pascal);
 
-    let tokens = quote! {
-        use crate::oreos::prelude::*;
+    let mut io_access_tokens = quote! {};
 
+    if let Some(io_acc) = io_access {
+        let io_acc_ident = format_ident!("{}", to_pascal_case(io_acc));
+        io_access_tokens = quote! {
+
+
+            #[derive(IoAccess)]
+            struct #io_acc_ident {
+                _comment_!("\nTODO: add IO fields\n");
+            }
+
+        };
+    }
+
+    let tokens = quote! {
+        use oreos::prelude::*;
+
+        #io_access_tokens
+
+        #[derive(Clone, Copy)]
         pub struct #backend_state {
-            //TODO
+            _comment_!("\nTODO: Place the backend state fields\n");
+        }
+
+        #[derive(Clone, Copy)]
+        pub struct #backend_config {
+            _comment_!("\nTODO: Place the backend config fields\n");
         }
 
         pub struct #condition;
@@ -132,14 +156,25 @@ pub fn backend_template(name: &str) -> String {
             }
         }
 
-        pub struct #name {
-            // TODO
+        pub struct #name<SL, CL, ACCESS>
+        where
+            SL: Lane<#backend_state> + 'static,
+            CL: Lane<#backend_config> + 'static,
+        {
+            state: &'static SL,
+            config: &'static CL
+            access: ACCESS
         }
 
-        impl Backend for #name {
+        impl<SL, CL, ACCESS> Backend for #name<SL, CL, ACCESS>
+        where
+            SL: Lane<#backend_state> + 'static,
+            CL: Lane<#backend_config> + 'static,
+            ACCESS: IoAccess,
+        {
             type Output = ();
             type Condition = #condition;
-            type Config = ();
+            type Config = #backend_config;
             type Error = ();
 
             async fn init(&mut self, _config: Self::Config) -> Result<(), Self::Error> {
@@ -147,6 +182,8 @@ pub fn backend_template(name: &str) -> String {
             }
 
             async fn tick(&mut self) -> Self::Output {
+                let state = self.state.read();
+                let config = self.config.read();
                 todo!("Backend tick")
             }
 

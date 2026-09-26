@@ -4,6 +4,7 @@ mod app;
 mod command;
 mod derive;
 mod devices;
+mod ioaccess;
 mod metadata;
 mod middleware;
 mod registry;
@@ -239,6 +240,22 @@ pub fn make_state(item: TokenStream) -> TokenStream {
     );
 
     derive::derive_state(input).into()
+}
+
+#[proc_macro_derive(IoAccess, attributes(io))]
+pub fn make_io_access(item: TokenStream) -> TokenStream {
+    let input: DeriveInput = parse_macro_input!(item as DeriveInput);
+
+    //TODO: improve metadata saving with SEMA,
+    // save_macro_metadata(
+    //     &input.ident.to_string(),
+    //     crate::metadata::ComponentPayload::IoAccess,
+    // );
+
+    match ioaccess::create_access_io(input) {
+        Ok(t) => t.into(),
+        Err(e) => e.into_compile_error().into(),
+    }
 }
 
 #[proc_macro_derive(Config)]

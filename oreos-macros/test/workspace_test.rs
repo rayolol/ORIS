@@ -5,9 +5,6 @@
 mod tests {
     use super::*;
 
-    #[panic_handler]
-    fn panic_handler = 
-
     #[test]
     fn test_workspace_quote_safety() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Step 1: Loading workspace...");
