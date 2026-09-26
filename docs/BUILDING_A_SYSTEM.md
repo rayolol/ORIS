@@ -349,6 +349,41 @@ the resolved binding, that value can contain direct IO capabilities,
 target-aware transport clients, or both; the backend does not choose concrete
 pins or claim shared raw peripherals.
 
+The current access-container syntax is:
+
+```rust
+#[derive(IoAccess)]
+struct HeaterAccess<PWM> {
+    #[io(kind = "pwm")]
+    output: PWM,
+}
+```
+
+The derive includes each recognized `#[io(...)]` field in a generated `new(...)`
+constructor and generates a public mutable getter by appending `_mut` to the
+field name:
+
+```rust
+let output: &mut PWM = access.output_mut();
+```
+
+Current kind strings are `"pwm"`, `"analog"`, `"digital"`, and `"transport"`.
+All fields intended to be initialized by the generated constructor should carry
+a recognized `#[io(...)]` attribute. Unannotated or unknown kinds are not added
+to that constructor.
+
+The derive does not create the concrete `PWM`, GPIO, analog, or transport
+value. Application initialization still creates those values and passes them
+into the access container. The generated constructor is currently private to
+the module containing the access struct, so construction must occur in that
+module or be exposed through an application-owned public constructor until the
+macro API is finalized.
+
+The access derive and backend template are not yet a compile-proven end-to-end
+path. In particular, the runtime marker trait and the generic access bound used
+by a generated backend still need to be connected. Treat the current derive as
+an evolving scaffold rather than a stable public API.
+
 Implement:
 
 - `Output`: data returned from a tick;

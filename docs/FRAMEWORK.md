@@ -217,6 +217,59 @@ midlayer hardware binding and may contain direct IO capabilities,
 `TransportClient`s, or both. A backend does not need to own the raw physical
 peripheral.
 
+#### `IoAccess` derive: current generated surface
+
+`#[derive(IoAccess)]` is the current scaffold for grouping the hardware handles
+given to one backend. The declaration is generic over the concrete handle
+types, so it does not name a board pin or peripheral instance:
+
+```rust
+#[derive(IoAccess)]
+struct HeaterAccess<PWM> {
+    #[io(kind = "pwm")]
+    output: PWM,
+}
+```
+
+For every field carrying a recognized `#[io(...)]` attribute, the derive
+currently generates:
+
+- a constructor argument and struct initializer entry;
+- a public mutable getter named `<field>_mut`;
+- a marker implementation, `impl IoAccess for <AccessType>`.
+
+The example therefore produces a surface equivalent to:
+
+```rust
+impl<PWM> IoAccess for HeaterAccess<PWM> {}
+
+impl<PWM> HeaterAccess<PWM> {
+    fn new(output: PWM) -> Self {
+        Self { output }
+    }
+
+    pub fn output_mut(&mut self) -> &mut PWM {
+        &mut self.output
+    }
+}
+```
+
+The recognized kind strings are currently `"pwm"`, `"analog"`, `"digital"`,
+and `"transport"`. These strings select the intended capability category; they
+do not select a concrete Embassy type or initialize hardware.
+
+This derive is only the access-container side of the boundary. The current
+implementation does not yet generate a per-access API trait with associated
+types, and the runtime does not yet expose the marker `IoAccess` trait expected
+by the generated implementation. Constructor visibility, capability bounds,
+direction-specific digital kinds, CLI template wiring, and consumer compile
+tests are tracked in [Limitations and roadmap](LIMITATIONS_AND_ROADMAP.md).
+
+Concrete values are still created by application/board initialization and
+moved into the access value. A future midlayer binding may generate that
+construction, but `IoAccess` itself does not claim pins, split timers, or create
+transport servers.
+
 Backends implement `hal::Backend` manually. `#[create(Device)]` moves each
 backend into static storage and spawns one Embassy task per backend. The
 generated task currently calls `tick()` every 10 ms. It does not automatically

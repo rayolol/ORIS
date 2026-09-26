@@ -187,6 +187,48 @@ generic Rust error. The macros need errors that name:
 Generated code also needs compile-tested documentation examples and supported
 board/toolchain matrices.
 
+### 1.16 `IoAccess` derive and backend generation are not yet integrated
+
+`#[derive(IoAccess)]` now parses named struct fields using the current form:
+
+```rust
+#[io(kind = "pwm")]
+output: PWM
+```
+
+It recognizes `pwm`, `analog`, `digital`, and `transport`, generates a private
+`new(...)` constructor, generates public `<field>_mut()` getters, and emits a
+marker `impl IoAccess for AccessType`.
+
+The implementation is not yet a usable end-to-end backend boundary:
+
+- the runtime does not currently define or re-export the `IoAccess` marker
+  trait expected by the generated implementation;
+- the derive builds capability predicates on a cloned generic list but splits
+  the original generics when quoting the implementation, so those predicates
+  are currently discarded;
+- the digital capability path uses the wrong `embedded-hal` module casing and
+  requires input and output together instead of representing direction;
+- analog and transport kinds currently add no trait contract;
+- unknown kinds are silently ignored instead of producing an actionable error;
+- the generated constructor is not public, which prevents board initialization
+  in another module from calling it directly;
+- the macro generates inherent getters and a marker implementation, not the
+  per-access associated-type trait required to call those getters through a
+  generic `ACCESS` backend parameter;
+- the ORDL backend template declares `ACCESS` but does not yet generate a valid
+  `Backend` implementation over `Backend<SL, CL, ACCESS>` or constrain it by an
+  access trait;
+- ORDL's generation paths currently pass `None` for the optional access name,
+  so project-model access information is not yet reaching the template.
+
+The macro crate itself compiles, but that does not exercise consumer expansion.
+The CLI passes its host-target check, but that still does not compile the Rust
+source produced by the backend template. The next completion criterion is a
+generated consumer fixture that derives an access container, constructs it with
+fake or Embassy-compatible handles, stores it in a backend, calls its accessors
+through the intended trait boundary, and compiles successfully.
+
 ## 2. Near-term plan
 
 The order matters: stabilize semantic relationships and diagnostics before
@@ -204,6 +246,12 @@ building a richer editor on top of an unstable model.
 - Turn recent failures into regression tests: runtime path casing,
   `static_cell` resolution, missing command association, and generic middleware
   inference.
+- Add `IoAccess` pass fixtures for PWM, directional digital IO, mixed direct
+  IO/transport access, generics, and existing where clauses.
+- Add `IoAccess` compile-fail fixtures for tuple structs, malformed attributes,
+  unknown kinds, missing capability implementations, and duplicate field roles.
+- Compile the ORDL backend template as consumer Rust so a macro-crate-only build
+  cannot hide broken generated syntax or generic bounds.
 
 ### Phase 2: make Sema the semantic bridge
 
@@ -237,6 +285,9 @@ source or the project model rather than guessing.
   replacement.
 - Add validation before writing any file.
 - Make CLI help and error messages use the exact accepted command grammar.
+- Populate the optional backend access argument from the project model instead
+  of passing `None`, then generate a valid backend constructor and `ACCESS`
+  trait bound.
 
 The goal is safe incremental work, not perpetual full regeneration.
 
@@ -331,6 +382,11 @@ midlayer pin/peripheral assignment
         ↓
 backend constructor
 ```
+
+The current `IoAccess` derive only scaffolds the Rust access container and its
+field getters. It does not implement this board-resource resolution, create the
+concrete handles, or validate conflicts. Those responsibilities remain part of
+the planned midlayer binding described in this section.
 
 For a shared bus, one `TransportServer` owns and serializes the physical
 peripheral. Generated clients carry or select the intended slave target. This

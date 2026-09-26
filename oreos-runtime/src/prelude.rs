@@ -93,6 +93,7 @@ pub use crate::hal::{
     EstopFlag,
     Fault,
     GenericBus as GenericBusTrait,
+    IoAccess,
     Kernel as KernelTrait,
     KernelError,
     // Bus primitives (now in HAL)
