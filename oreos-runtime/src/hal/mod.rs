@@ -47,14 +47,11 @@ pub enum KernelError {
     InitializationFailed,
 }
 
-
 pub trait MaybeDevice {
     fn start(&'static self, spawner: embassy_executor::Spawner);
 }
 
-pub enum DeviceError {
-
-}
+pub enum DeviceError {}
 
 pub trait State {}
 
@@ -83,9 +80,9 @@ pub enum Severity {
 #[derive(Clone, Default)]
 pub struct DeviceState<F: State> {
     pub enabled: bool,
-    pub mode:    Mode,
-    pub fault:   Option<Fault>,
-    pub custom:  F,
+    pub mode: Mode,
+    pub fault: Option<Fault>,
+    pub custom: F,
 }
 
 #[derive(Clone, Default)]
@@ -122,6 +119,8 @@ pub struct TelemetryField {
     pub value: f32,
 }
 
+pub trait IoAccess {}
+
 #[allow(async_fn_in_trait)]
 pub trait Backend {
     type Output: Copy;
@@ -144,7 +143,6 @@ pub trait Kernel {
     fn feedback(&self) -> Self::State;
 
     fn tick(&mut self);
-
 }
 
 pub trait Device {
@@ -155,7 +153,6 @@ pub trait Device {
     fn kernel(&mut self) -> &mut Self::Kernel;
     fn execute(&mut self, cmd: Self::Command);
 }
-
 
 pub trait Middleware<State, Config, Command> {
     fn process(&mut self, state: &mut State, config: &Config);
@@ -168,7 +165,5 @@ pub struct NoMiddleware;
 impl<S, C, Cmd> Middleware<S, C, Cmd> for NoMiddleware {
     #[inline(always)]
     fn process(&mut self, _state: &mut S, _config: &C) {}
-    fn command(&mut self,_: Cmd, _State: &mut S, _config: &C) {}
+    fn command(&mut self, _: Cmd, _State: &mut S, _config: &C) {}
 }
-
-

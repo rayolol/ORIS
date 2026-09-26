@@ -138,14 +138,16 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
 
         #io_access_tokens
 
+        _comment_!("\nTODO: Place the backend state fields\n");
         #[derive(Clone, Copy)]
         pub struct #backend_state {
-            _comment_!("\nTODO: Place the backend state fields\n");
+
         }
 
+         _comment_!("\nTODO: Place the backend config fields\n");
         #[derive(Clone, Copy)]
         pub struct #backend_config {
-            _comment_!("\nTODO: Place the backend config fields\n");
+
         }
 
         pub struct #condition;
@@ -162,8 +164,8 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
             CL: Lane<#backend_config> + 'static,
         {
             state: &'static SL,
-            config: &'static CL
-            access: ACCESS
+            config: &'static CL,
+            access: ACCESS,
         }
 
         impl<SL, CL, ACCESS> Backend for #name<SL, CL, ACCESS>
