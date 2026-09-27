@@ -50,8 +50,8 @@
 
 // ── Macros from oreos-macros ────────────────────────────────────────────────
 pub use oreos_macros::{
-    Command, Config, GenericBus, Kernel, Middleware, State, app, create, devices, make_transport,
-    middleware,
+    Command, Config, GenericBus, IoAccess, Kernel, Middleware, State, app, create, devices,
+    make_transport, middleware,
 };
 
 // ── External crates for embedded environment ──────────────────────────────────

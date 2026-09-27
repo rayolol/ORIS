@@ -1,6 +1,6 @@
-use std::path::Path;
 use anyhow::Result;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, path::Path};
 
 pub const OREOS_FILE_PATH: &str = "OREOS.toml";
 
@@ -75,8 +75,33 @@ pub struct BusLane {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Backend {
     pub name: String,
-    pub periph_access: Option<String>,
+    pub periph_access: Option<PeripheralAccess>,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PeripheralAccess {
+    pub name: String,
+    pub field: Vec<PeripheralPin>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum PeripheralPinType {
+    Pwm,
+    Analog,
+    Digital,
+    Transport,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PeripheralPin {
+    pub name: String,
+    pub kind: PeripheralPinType,
+    pub pins: Vec<PinId>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq, Hash, Deserialize, Clone)]
+#[serde(transparent)]
+pub struct PinId(pub String);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TypeName {
