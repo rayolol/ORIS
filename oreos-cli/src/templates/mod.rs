@@ -1,3 +1,5 @@
+use std::default;
+
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 pub mod runtime_base_template;
@@ -66,7 +68,7 @@ pub fn kernel_template(name: &str, state: &str, config: &str, bus: &str, device:
     let device_module = format_ident!("{}", to_snake_case(device));
 
     let tokens = quote! {
-        use crate::oreos::prelude::*;
+        use oreos::prelude::*;
         use crate::#device_module::device::{#state, #config};
 
         #[derive(GenericBus)]
@@ -95,7 +97,7 @@ pub fn middleware_template(name: &str, device: &str) -> String {
     let name = format_ident!("{}", to_pascal_case(name));
     let device_module = format_ident!("{}", to_snake_case(device));
     let tokens = quote! {
-        use crate::oreos::prelude::*;
+        use oreos::prelude::*;
         use crate::#device_module::device::{__DeviceCommand, __DeviceState, __DeviceConfig};
 
         #[derive(Middleware)]
@@ -117,8 +119,15 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
     let backend_state = format_ident!("{}State", pascal);
     let backend_config = format_ident!("{}Config", pascal);
     let condition = format_ident!("{}Condition", pascal);
+    let default_io_access = format_ident!("{}IoAccess", pascal);
 
-    let mut io_access_tokens = quote! {};
+    let mut io_access_tokens = quote! {
+        #[derive(IoAccess)]
+            struct #default_io_access {
+
+            }
+             _comment_!("\n///TODO: add IO fields\n");
+    };
 
     if let Some(io_acc) = io_access {
         let io_acc_ident = format_ident!("{}", to_pascal_case(io_acc));
@@ -127,8 +136,9 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
 
             #[derive(IoAccess)]
             struct #io_acc_ident {
-                _comment_!("\nTODO: add IO fields\n");
+
             }
+             _comment_!("\n///stubbed, should receive fields from TOML TODO: add IO fields\n");
 
         };
     }
@@ -138,13 +148,13 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
 
         #io_access_tokens
 
-        _comment_!("\nTODO: Place the backend state fields\n");
+        _comment_!("\n///TODO: Place the backend state fields\n");
         #[derive(Clone, Copy)]
         pub struct #backend_state {
 
         }
 
-         _comment_!("\nTODO: Place the backend config fields\n");
+         _comment_!("\n///TODO: Place the backend config fields\n");
         #[derive(Clone, Copy)]
         pub struct #backend_config {
 
@@ -172,7 +182,7 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
         where
             SL: Lane<#backend_state> + 'static,
             CL: Lane<#backend_config> + 'static,
-            ACCESS: IoAccess,
+            ACCESS: oreos::IoAccess,
         {
             type Output = ();
             type Condition = #condition;
@@ -248,7 +258,7 @@ pub fn device_template(
         .collect();
 
     let tokens = quote! {
-        use crate::oreos::prelude::*;
+        use oreos::prelude::*;
         use crate::#module::kernel::#kernel;
         #(#component_imports)*
 

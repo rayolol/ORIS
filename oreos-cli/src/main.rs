@@ -10,6 +10,8 @@ use anyhow::Result;
 use clap::Parser;
 use scheme::{Backend, BusLane, ControlNode, Device, Kernel, Middleware, TypeName};
 
+use crate::scheme::PeripheralAccess;
+
 #[derive(Parser)]
 #[command(name = "ORDL")]
 #[command(about = "OREOS Device Description Language")]
@@ -168,10 +170,22 @@ fn sync_config(mut node: ControlNode) -> Result<ControlNode> {
 
 fn create_backend(node: &mut ControlNode, device_name: String) -> Result<()> {
     let name = ops::ask("Backend name: ")?;
+    let periph_access = ops::ask("Peripheral access type name (optional) [y/n]: ")?;
+
+    let periph = if periph_access.trim() == "n" || periph_access.trim() == "no" {
+        None
+    } else {
+        let name = ops::ask("Peripheral access type name: ")?;
+        //TODO: add more details about the peripheral access, like pins and their types, etc.
+        Some(PeripheralAccess {
+            name,
+            field: vec![],
+        })
+    };
 
     let backend = Backend {
         name: name.clone(),
-        periph_access: None,
+        periph_access: periph,
     };
 
     let device = node
