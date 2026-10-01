@@ -124,7 +124,7 @@ pub fn create_access_io(mut input: DeriveInput) -> syn::Result<proc_macro2::Toke
                     .make_where_clause()
                     .predicates
                     .push(syn::parse_quote!(
-                        #ty: ::embedded_hal::pwm::SetDutyCycle,
+                        #ty: ::embedded_hal::pwm::SetDutyCycle
                     ));
             }
             IoKind::Analog => {}
@@ -135,7 +135,7 @@ pub fn create_access_io(mut input: DeriveInput) -> syn::Result<proc_macro2::Toke
                     .make_where_clause()
                     .predicates
                     .push(syn::parse_quote!(
-                        #ty: ::embedded_hal::digital::InputPin + ::embedded_hal::digital::OutputPin,
+                        #ty: ::embedded_hal::digital::InputPin + ::embedded_hal::digital::OutputPin
                     ));
             }
             IoKind::Transport => {}
