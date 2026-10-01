@@ -408,59 +408,57 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
 
     if let syn::Data::Struct(ref mut data_struct) = input.data {
         for field in data_struct.fields.iter_mut() {
-            let Some(attr_index) = field
+            if let Some(attr_index) = field
                 .attrs
                 .iter()
                 .position(|attr| attr.path().is_ident("backend"))
-            else {
-                continue;
-            };
+            {
+                let raw_ty = field.ty.clone();
+                let field_name = field.ident.as_ref().unwrap();
 
-            let raw_ty = field.ty.clone();
-            let field_name = field.ident.as_ref().unwrap();
+                let tick_rate: BackendArgs = field.attrs[attr_index].parse_args()?;
+                let tick_rate_span = tick_rate.tick_rate.span();
 
-            let tick_rate: BackendArgs = field.attrs[attr_index].parse_args()?;
-            let tick_rate_span = tick_rate.tick_rate.span();
+                let tick_rate = tick_rate.tick_rate.value().parse::<u64>().map_err(|err| {
+                    syn::Error::new(tick_rate_span, format!("invalid `tick_rate`: {err}"))
+                })?;
 
-            let tick_rate = tick_rate.tick_rate.value().parse::<u64>().map_err(|err| {
-                syn::Error::new(tick_rate_span, format!("invalid `tick_rate`: {err}"))
-            })?;
+                field.attrs.retain(|a| !a.path().is_ident("backend"));
 
-            field.attrs.retain(|a| !a.path().is_ident("backend"));
+                let backend_name =
+                    quote::format_ident!("__{}_BACKEND__", field_name.to_string().to_uppercase());
+                let task_name =
+                    quote::format_ident!("__{}_TASK__", field_name.to_string().to_uppercase());
 
-            let backend_name =
-                quote::format_ident!("__{}_BACKEND__", field_name.to_string().to_uppercase());
-            let task_name =
-                quote::format_ident!("__{}_TASK__", field_name.to_string().to_uppercase());
+                backend_names.push(backend_name.clone());
+                backend_tasks.push(task_name.clone());
+                backend_types.push(raw_ty.clone());
+                field_names.push(field_name.clone());
 
-            backend_names.push(backend_name.clone());
-            backend_tasks.push(task_name.clone());
-            backend_types.push(raw_ty.clone());
-            field_names.push(field_name.clone());
+                field.vis = syn::parse_quote!(pub);
 
-            field.vis = syn::parse_quote!(pub);
+                field.ty = syn::parse_quote!(
+                    ::core::cell::UnsafeCell<Option<#raw_ty>>
+                );
 
-            field.ty = syn::parse_quote!(
-                ::core::cell::UnsafeCell<Option<#raw_ty>>
-            );
-
-            backends.push(quote! {
-                static #backend_name: ::oreos::prelude::static_cell::StaticCell<#raw_ty> =
-                    ::oreos::prelude::static_cell::StaticCell::new();
+                backends.push(quote! {
+                    static #backend_name: ::oreos::prelude::static_cell::StaticCell<#raw_ty> =
+                        ::oreos::prelude::static_cell::StaticCell::new();
 
 
 
-                #[embassy_executor::task]
-                async fn #task_name(backend: &'static mut #raw_ty) {
-                    let config: <#raw_ty as ::oreos::hal::Backend>::Config =
-                    ::core::default::Default::default();
-                    backend.init(config).await.expect("Backend initialization failed");
-                    loop {
-                        backend.tick().await;
-                        ::oreos::embassy_time::Timer::after_millis(#tick_rate).await;
+                    #[embassy_executor::task]
+                    async fn #task_name(backend: &'static mut #raw_ty) {
+                        let config: <#raw_ty as ::oreos::hal::Backend>::Config =
+                        ::core::default::Default::default();
+                        backend.init(config).await.expect("Backend initialization failed");
+                        loop {
+                            backend.tick().await;
+                            ::oreos::embassy_time::Timer::after_millis(#tick_rate).await;
+                        }
                     }
-                }
-            });
+                });
+            }
 
             if field
                 .attrs
