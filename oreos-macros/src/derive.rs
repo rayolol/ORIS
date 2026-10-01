@@ -354,6 +354,26 @@ pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
     Ok(TokenStream::from(expanded))
 }
 
+struct BackendArgs {
+    rate_ident: syn::Ident,
+    colon_token: syn::Token![:],
+    tick_rate: syn::LitStr,
+}
+
+impl syn::parse::Parse for BackendArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let rate_ident: syn::Ident = input.parse()?;
+        let colon_token: syn::Token![:] = input.parse()?;
+        let tick_rate: syn::LitStr = input.parse()?;
+
+        Ok(BackendArgs {
+            rate_ident,
+            colon_token,
+            tick_rate,
+        })
+    }
+}
+
 // #[create(Device)]
 pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
     let name = &input.ident;
@@ -388,46 +408,58 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
 
     if let syn::Data::Struct(ref mut data_struct) = input.data {
         for field in data_struct.fields.iter_mut() {
-            if field
+            let Some(attr_index) = field
                 .attrs
                 .iter()
-                .any(|attr| attr.path().is_ident("backend"))
-            {
-                let raw_ty = field.ty.clone();
-                let field_name = field.ident.as_ref().unwrap();
+                .position(|attr| attr.path().is_ident("backend"))
+            else {
+                continue;
+            };
 
-                field.attrs.retain(|a| !a.path().is_ident("backend"));
+            let raw_ty = field.ty.clone();
+            let field_name = field.ident.as_ref().unwrap();
 
-                let backend_name =
-                    quote::format_ident!("__{}_BACKEND__", field_name.to_string().to_uppercase());
-                let task_name =
-                    quote::format_ident!("__{}_TASK__", field_name.to_string().to_uppercase());
+            let tick_rate: BackendArgs = field.attrs[attr_index].parse_args()?;
+            let tick_rate_span = tick_rate.tick_rate.span();
 
-                backend_names.push(backend_name.clone());
-                backend_tasks.push(task_name.clone());
-                backend_types.push(raw_ty.clone());
-                field_names.push(field_name.clone());
+            let tick_rate = tick_rate.tick_rate.value().parse::<u64>().map_err(|err| {
+                syn::Error::new(tick_rate_span, format!("invalid `tick_rate`: {err}"))
+            })?;
 
-                field.vis = syn::parse_quote!(pub);
+            field.attrs.retain(|a| !a.path().is_ident("backend"));
 
-                field.ty = syn::parse_quote!(
-                    ::core::cell::UnsafeCell<Option<#raw_ty>>
-                );
+            let backend_name =
+                quote::format_ident!("__{}_BACKEND__", field_name.to_string().to_uppercase());
+            let task_name =
+                quote::format_ident!("__{}_TASK__", field_name.to_string().to_uppercase());
 
-                backends.push(quote! {
-                    static #backend_name: ::oreos::prelude::static_cell::StaticCell<#raw_ty> =
-                        ::oreos::prelude::static_cell::StaticCell::new();
+            backend_names.push(backend_name.clone());
+            backend_tasks.push(task_name.clone());
+            backend_types.push(raw_ty.clone());
+            field_names.push(field_name.clone());
 
-                    #[embassy_executor::task]
-                    async fn #task_name(backend: &'static mut #raw_ty) {
-                        loop {
-                            backend.tick().await;
-                            //temporary
-                            ::oreos::embassy_time::Timer::after_millis(10).await;
-                        }
+            field.vis = syn::parse_quote!(pub);
+
+            field.ty = syn::parse_quote!(
+                ::core::cell::UnsafeCell<Option<#raw_ty>>
+            );
+
+            backends.push(quote! {
+                static #backend_name: ::oreos::prelude::static_cell::StaticCell<#raw_ty> =
+                    ::oreos::prelude::static_cell::StaticCell::new();
+
+                let config: <#raw_ty as ::oreos::hal::Backend>::Config =
+                    ::core::default::Default::default();
+
+                #[embassy_executor::task]
+                async fn #task_name(backend: &'static mut #raw_ty) {
+                    backend.init(config).await.expect("Backend initialization failed");
+                    loop {
+                        backend.tick().await;
+                        ::oreos::embassy_time::Timer::after_millis(#tick_rate).await;
                     }
-                });
-            }
+                }
+            });
 
             if field
                 .attrs
@@ -615,6 +647,8 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                 #(let #field_names = #backend_names.init(#field_names);)*
 
                 #(spawner.spawn(#backend_tasks(#field_names).unwrap());)*
+
+
 
 
 
