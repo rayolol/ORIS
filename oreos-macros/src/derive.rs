@@ -448,11 +448,12 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                 static #backend_name: ::oreos::prelude::static_cell::StaticCell<#raw_ty> =
                     ::oreos::prelude::static_cell::StaticCell::new();
 
-                let config: <#raw_ty as ::oreos::hal::Backend>::Config =
-                    ::core::default::Default::default();
+
 
                 #[embassy_executor::task]
                 async fn #task_name(backend: &'static mut #raw_ty) {
+                    let config: <#raw_ty as ::oreos::hal::Backend>::Config =
+                    ::core::default::Default::default();
                     backend.init(config).await.expect("Backend initialization failed");
                     loop {
                         backend.tick().await;
