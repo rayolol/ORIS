@@ -5,7 +5,6 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-pub mod pins;
 // ── Bus Primitives ──────────────────────────────────────────────────────────
 
 pub trait Lane<T> {
