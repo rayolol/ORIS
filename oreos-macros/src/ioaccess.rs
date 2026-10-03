@@ -1,13 +1,9 @@
-use std::fmt::Result;
-
 use proc_macro2::{self, TokenStream};
 use quote::{ToTokens, format_ident, quote};
 use syn::{DeriveInput, Ident, Token, Type};
 
 struct IoAccessArgs {
-    ident: Ident,
-    token: Token![=],
-    kind: String,
+    kind: IoKind,
 }
 
 enum IoKind {
@@ -26,14 +22,31 @@ struct IoField {
 impl syn::parse::Parse for IoAccessArgs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let ident: Ident = input.parse()?;
-        let token: Token![=] = input.parse()?;
-        let kind: String = input.parse::<syn::LitStr>()?.value();
+        if ident != "kind" {
+            return Err(syn::Error::new(ident.span(), "expected `kind`"));
+        }
 
-        Ok(IoAccessArgs { ident, token, kind })
+        let _: Token![=] = input.parse()?;
+        let kind = input.parse::<syn::LitStr>()?;
+
+        let kind = match kind.value().as_str() {
+            "pwm" => IoKind::Pwm,
+            "analog" => IoKind::Analog,
+            "digital" => IoKind::Digital,
+            "transport" => IoKind::Transport,
+            unknown => Err(syn::Error::new(
+                kind.span(),
+                format!(
+                    "unknown I/O kind `{unknown}`; expected `pwm`, `analog`, `digital`, or `transport`"
+                ),
+            ))?,
+        };
+
+        Ok(Self { kind })
     }
 }
 
-pub fn create_access_io(mut input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+pub fn create_access_io(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let access_name = &input.ident;
 
     let mut io_fields: Vec<IoField> = Vec::new();
@@ -54,34 +67,12 @@ pub fn create_access_io(mut input: DeriveInput) -> syn::Result<proc_macro2::Toke
         };
         for attr in &field.attrs {
             if attr.path().is_ident("io") {
-                let args: IoAccessArgs = attr.parse_args()?;
-
-                match args.kind.as_str() {
-                    "pwm" => io_fields.push(IoField {
-                        ident: ident.clone(),
-                        ty: field.ty.clone(),
-                        kind: IoKind::Pwm,
-                    }),
-
-                    "analog" => io_fields.push(IoField {
-                        ident: ident.clone(),
-                        ty: field.ty.clone(),
-                        kind: IoKind::Analog,
-                    }),
-
-                    "digital" => io_fields.push(IoField {
-                        ident: ident.clone(),
-                        ty: field.ty.clone(),
-                        kind: IoKind::Digital,
-                    }),
-
-                    "transport" => io_fields.push(IoField {
-                        ident: ident.clone(),
-                        ty: field.ty.clone(),
-                        kind: IoKind::Transport,
-                    }),
-                    _ => {}
-                }
+                let args = attr.parse_args::<IoAccessArgs>()?;
+                io_fields.push(IoField {
+                    ident: ident.clone(),
+                    ty: field.ty.clone(),
+                    kind: args.kind,
+                });
             }
         }
     }
@@ -114,44 +105,28 @@ pub fn create_access_io(mut input: DeriveInput) -> syn::Result<proc_macro2::Toke
         .collect();
 
     let mut generics = input.generics.clone();
-
     for field in &io_fields {
-        match &field.kind {
-            IoKind::Pwm => {
-                let ty = &field.ty;
-
-                generics
-                    .make_where_clause()
-                    .predicates
-                    .push(syn::parse_quote!(
-                        #ty: ::embedded_hal::pwm::SetDutyCycle
-                    ));
-            }
-            IoKind::Analog => {}
-            IoKind::Digital => {
-                let ty = &field.ty;
-
-                generics
-                    .make_where_clause()
-                    .predicates
-                    .push(syn::parse_quote!(
-                        #ty: ::embedded_hal::digital::InputPin + ::embedded_hal::digital::OutputPin
-                    ));
-            }
-            IoKind::Transport => {}
+        if let IoKind::Pwm = field.kind {
+            let ty = &field.ty;
+            generics
+                .make_where_clause()
+                .predicates
+                .push(syn::parse_quote!(#ty: ::embedded_hal::pwm::SetDutyCycle));
         }
     }
 
+    // Digital direction belongs to the backend that consumes the resource: an
+    // ordinary pin may be input-only or output-only.
     let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
 
     let returns: Vec<&Ident> = io_fields.iter().map(|f| &f.ident).collect();
 
     let out = quote! {
 
-        impl #impl_generics IoAccess for #access_name #type_generics  {}
+        impl #impl_generics IoAccess for #access_name #type_generics #where_clause {}
 
         impl #impl_generics #access_name #type_generics #where_clause {
-            fn new(#(#structured_fields),*) -> Self {
+            pub fn new(#(#structured_fields),*) -> Self {
                 Self {
                     #(#returns),*
                 }
@@ -162,4 +137,22 @@ pub fn create_access_io(mut input: DeriveInput) -> syn::Result<proc_macro2::Toke
     };
 
     Ok(out.to_token_stream())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::IoAccessArgs;
+
+    #[test]
+    fn rejects_unknown_io_kind() {
+        let error = match syn::parse_str::<IoAccessArgs>(r#"kind = "serial""#) {
+            Ok(_) => panic!("unknown I/O kind was accepted"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            error.to_string(),
+            "unknown I/O kind `serial`; expected `pwm`, `analog`, `digital`, or `transport`"
+        );
+    }
 }
