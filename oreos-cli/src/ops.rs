@@ -26,7 +26,11 @@ pub fn generate(device: &Device) -> Result<Vec<(String, String)>> {
     let config = device.config.name.as_str();
     let bus = device.kernel.bus.name.as_str();
     let kernel = device.kernel.name.as_str();
-    let backends: Vec<&str> = device.backends.iter().map(|b| b.name.as_str()).collect();
+    let backends: Vec<(&str, Option<&str>)> = device
+        .backends
+        .iter()
+        .map(|b| (b.name.as_str(), b.periph_access.as_ref().map(|access| access.name.as_str())))
+        .collect();
     let middlewares: Vec<&str> = device.middleware.iter().map(|m| m.name.as_str()).collect();
 
     files.push((
@@ -45,10 +49,9 @@ pub fn generate(device: &Device) -> Result<Vec<(String, String)>> {
         ),
     ));
 
-    for backend in backends.iter() {
+    for (backend, access) in backends.iter() {
         let filename = format!("{}.rs", snake_with_suffix(backend, "backend"));
-        //FIXME: IO access is not yet implemented for backends, so we pass None for now. Once it is implemented, we can pass the correct IO access type here.
-        files.push((filename, backend_template(backend, None)));
+        files.push((filename, backend_template(backend, *access)));
     }
 
     for middleware in middlewares.iter() {

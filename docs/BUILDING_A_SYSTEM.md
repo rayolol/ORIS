@@ -343,11 +343,11 @@ an invitation to place application code in the kernel.
 A backend should translate between typed device data and one hardware mechanism.
 It should not decide machine-wide policy.
 
-The backend retains static references to its bus-owned state and config. Its
-hardware access is injected as a generated midlayer access value. Depending on
-the resolved binding, that value can contain direct IO capabilities,
-target-aware transport clients, or both; the backend does not choose concrete
-pins or claim shared raw peripherals.
+The backend may retain static references to its bus-owned lanes. Its hardware
+access is an `IoAccess` value constructed from ordinary Embassy handles in
+application initialization. That value can contain direct IO or transport
+clients. The proposed midlayer binding would construct and validate it later;
+the CLI scaffold does not do that today.
 
 The current access-container syntax is:
 
@@ -369,20 +369,17 @@ let output: &mut PWM = access.output_mut();
 
 Current kind strings are `"pwm"`, `"analog"`, `"digital"`, and `"transport"`.
 All fields intended to be initialized by the generated constructor should carry
-a recognized `#[io(...)]` attribute. Unannotated or unknown kinds are not added
-to that constructor.
+a recognized `#[io(...)]` attribute. Unknown kinds are rejected. An
+unannotated field is omitted from the generated initializer and can leave the
+struct incomplete.
 
 The derive does not create the concrete `PWM`, GPIO, analog, or transport
-value. Application initialization still creates those values and passes them
-into the access container. The generated constructor is currently private to
-the module containing the access struct, so construction must occur in that
-module or be exposed through an application-owned public constructor until the
-macro API is finalized.
-
-The access derive and backend template are not yet a compile-proven end-to-end
-path. In particular, the runtime marker trait and the generic access bound used
-by a generated backend still need to be connected. Treat the current derive as
-an evolving scaffold rather than a stable public API.
+value. Application initialization creates those values and passes them to the
+generated public constructor. The runtime defines the `IoAccess` marker trait.
+Its marker contract does not expose generated getters through a generic
+`ACCESS` parameter; use a concrete access type when the backend calls them.
+The [STM32F103C8 valve example](STM32_VALVE_EXAMPLE.md) demonstrates this
+compiled path.
 
 Implement:
 
@@ -391,9 +388,10 @@ Implement:
 - `Config` and `Error`;
 - `init`, `tick`, and `config`.
 
-Remember that generated backend tasks currently call only `tick` at a fixed
-10 ms interval. Call initialization/configuration explicitly where needed and
-connect runtime data through the backend's state/config lanes.
+Generated backend tasks call `init(Default::default())` once, then call `tick`
+with the millisecond delay from `#[backend(tick_rate: "...")]`. They do not call
+`config` automatically or route the `tick` return value. Publish backend data
+through the lane.
 
 ### Step 7: middleware
 
@@ -424,6 +422,11 @@ backend(s) + kernel + DeviceState + DeviceConfig
 device
     -> Devices returned by #[init]
 ```
+
+For a complete, build-checked instance of this manual assembly, see the
+[STM32F103C8 valve example](STM32_VALVE_EXAMPLE.md). Its application constructs
+the Embassy GPIO, ADC, and PWM handles directly; the CLI supplies only the
+starting structure.
 
 Runtime policy and safe behavior remain application decisions. The midlayer may
 generate validated pin/peripheral construction and access injection from the

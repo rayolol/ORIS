@@ -85,18 +85,18 @@ Generated device startup:
 
 - moves each backend into a `StaticCell`;
 - spawns one task per backend;
-- calls `tick()` every 10 ms.
+- calls `Backend::init(Default::default())` once in that task;
+- calls `tick()` using the `#[backend(tick_rate: "...")]` millisecond delay.
 
 It does not:
 
-- call `Backend::init`;
 - call `Backend::config`;
-- use a backend-specific rate;
 - route the `tick` return value automatically;
 - define shutdown/restart semantics;
 - propagate backend errors or conditions into device faults.
 
-The current 10 ms delay is hardcoded.
+Backend configuration must currently implement `Default` for generated task
+startup. The rate is a delay, not a frequency.
 
 ### 1.8 Device scheduling is application-owned but easy to misunderstand
 
@@ -187,7 +187,7 @@ generic Rust error. The macros need errors that name:
 Generated code also needs compile-tested documentation examples and supported
 board/toolchain matrices.
 
-### 1.16 `IoAccess` derive and backend generation are not yet integrated
+### 1.16 `IoAccess` and backend scaffolding still need manual completion
 
 `#[derive(IoAccess)]` now parses named struct fields using the current form:
 
@@ -196,38 +196,25 @@ board/toolchain matrices.
 output: PWM
 ```
 
-It recognizes `pwm`, `analog`, `digital`, and `transport`, generates a private
+It recognizes `pwm`, `analog`, `digital`, and `transport`, generates a public
 `new(...)` constructor, generates public `<field>_mut()` getters, and emits a
-marker `impl IoAccess for AccessType`.
+marker `impl IoAccess for AccessType`. The runtime exposes that marker. The
+[STM32F103C8 valve example](STM32_VALVE_EXAMPLE.md) checks consumer expansion
+with concrete Embassy GPIO, ADC, and PWM handles.
 
-The implementation is not yet a usable end-to-end backend boundary:
+The remaining boundaries are:
 
-- the runtime does not currently define or re-export the `IoAccess` marker
-  trait expected by the generated implementation;
-- the derive builds capability predicates on a cloned generic list but splits
-  the original generics when quoting the implementation, so those predicates
-  are currently discarded;
-- the digital capability path uses the wrong `embedded-hal` module casing and
-  requires input and output together instead of representing direction;
-- analog and transport kinds currently add no trait contract;
-- unknown kinds are silently ignored instead of producing an actionable error;
-- the generated constructor is not public, which prevents board initialization
-  in another module from calling it directly;
-- the macro generates inherent getters and a marker implementation, not the
-  per-access associated-type trait required to call those getters through a
-  generic `ACCESS` backend parameter;
-- the ORDL backend template declares `ACCESS` but does not yet generate a valid
-  `Backend` implementation over `Backend<SL, CL, ACCESS>` or constrain it by an
-  access trait;
-- ORDL's generation paths currently pass `None` for the optional access name,
-  so project-model access information is not yet reaching the template.
-
-The macro crate itself compiles, but that does not exercise consumer expansion.
-The CLI passes its host-target check, but that still does not compile the Rust
-source produced by the backend template. The next completion criterion is a
-generated consumer fixture that derives an access container, constructs it with
-fake or Embassy-compatible handles, stores it in a backend, calls its accessors
-through the intended trait boundary, and compiles successfully.
+- the marker does not expose generated getters through a generic `ACCESS`
+  parameter; a backend calling them uses a concrete access type;
+- analog, digital, and transport categories do not specify detailed capability
+  contracts, such as digital input versus output;
+- the CLI records an optional access type name and forwards it to the template,
+  but it does not generate typed access fields or claim board resources;
+- the CLI's `#[backend(rate: "10")]` scaffold attribute differs from the
+  macro's current `#[backend(tick_rate: "10")]` syntax;
+- CLI templates are still scaffolds, not a compiled end-to-end firmware
+  generator; users fill in routes, backend logic, access fields, and runtime
+  assembly.
 
 ## 2. Near-term plan
 
@@ -285,9 +272,8 @@ source or the project model rather than guessing.
   replacement.
 - Add validation before writing any file.
 - Make CLI help and error messages use the exact accepted command grammar.
-- Populate the optional backend access argument from the project model instead
-  of passing `None`, then generate a valid backend constructor and `ACCESS`
-  trait bound.
+- Add typed access-field information to the project model only when it can
+  describe the user's actual Embassy handle types and ownership accurately.
 
 The goal is safe incremental work, not perpetual full regeneration.
 
@@ -298,7 +284,7 @@ The goal is safe incremental work, not perpetual full regeneration.
 - [ ] Give every backend instance `&'static` references to the bus-owned state
   and configuration channels it consumes; do not create a second authoritative
   state/config copy inside the backend.
-- [ ] Keep `MaybeDevice::start` synchronous: move each already-wired backend
+- [x] Keep `MaybeDevice::start` synchronous: move each already-wired backend
   into its `StaticCell` and spawn its generated task.
 - [ ] At the beginning of the generated backend task, obtain the initial
   configuration snapshot through the backend's configuration channel and call
@@ -307,8 +293,8 @@ The goal is safe incremental work, not perpetual full regeneration.
   method to perform the same initial channel read.
 - [ ] If backend initialization fails, publish an initialization fault, keep the
   hardware safe, and return without ever calling `tick()`.
-- [ ] After successful initialization, call `tick()` at the configured backend
-  rate until shutdown or fault policy stops the task.
+- [x] After successful initialization, call `tick()` using the configured
+  backend millisecond delay. Shutdown and fault stops remain to be defined.
 - [ ] Version configuration snapshots and define when later calls to
   `Backend::config` run as newer revisions arrive, without repeating
   initialization.
@@ -318,7 +304,8 @@ The goal is safe incremental work, not perpetual full regeneration.
   bus and a backend may update different fields of one state, so generated
   read-modify-write sequences must not lose updates and `FastLane` must safely
   coordinate multiple writers.
-- [ ] Make backend scheduling configurable.
+- [ ] Define deadline and priority behavior beyond the current per-backend
+  millisecond delay.
 - [ ] Route backend outputs and health into the bus/device state deliberately.
 - [ ] Define device/kernel initialization ordering.
 - [ ] Use the `dt` supplied to `Device::tick`.

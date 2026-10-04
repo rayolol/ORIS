@@ -1,16 +1,18 @@
-use std::default;
-
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+use rust_format::{Config as FormatConfig, Formatter, PostProcess, PrettyPlease};
 pub mod runtime_base_template;
 
 use crate::casing::{snake_with_suffix, to_pascal_case, to_snake_case};
 
-/// Pretty-prints `tokens` and inserts blank lines between top-level items, since
-/// prettyplease formats a single parsed `syn::File` with no item spacing of its own.
+/// Format generated Rust and turn comment markers into actual comments.
 pub fn format_code(tokens: TokenStream) -> String {
-    let file = syn::parse2(tokens).expect("generated tokens must parse as a valid Rust file");
-    let pretty = prettyplease::unparse(&file);
+    let formatter = PrettyPlease::from_config(
+        FormatConfig::new_str().post_proc(PostProcess::ReplaceMarkers),
+    );
+    let pretty = formatter
+        .format_tokens(tokens)
+        .expect("generated tokens must parse as a valid Rust file");
     insert_blank_lines_between_items(&pretty)
 }
 
@@ -71,12 +73,12 @@ pub fn kernel_template(name: &str, state: &str, config: &str, bus: &str, device:
         use oreos::prelude::*;
         use crate::#device_module::device::{#state, #config};
 
+        _comment_!("Add one FastLane<BackendState> field per backend. Route commands with #[route(DeviceState::target => BackendState::target)] and feedback with #[route(DeviceState::actual <= BackendState::actual)].");
         #[derive(GenericBus)]
         pub struct #bus {
             #[state]
             pub state: #state,
             pub estop: EstopFlag,
-            //TODO use the lanes and route them
         }
 
         #[derive(Kernel)]
@@ -123,10 +125,10 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
 
     let mut io_access_tokens = quote! {
         #[derive(IoAccess)]
-            struct #default_io_access {
+            pub struct #default_io_access {
 
             }
-             _comment_!("\n///TODO: add IO fields\n");
+             _comment_!("TODO: add IO fields");
     };
 
     if let Some(io_acc) = io_access {
@@ -135,10 +137,10 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
 
 
             #[derive(IoAccess)]
-            struct #io_acc_ident {
+            pub struct #io_acc_ident {
 
             }
-             _comment_!("\n///stubbed, should receive fields from TOML TODO: add IO fields\n");
+             _comment_!("TODO: add IO fields");
 
         };
     }
@@ -148,13 +150,13 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
 
         #io_access_tokens
 
-        _comment_!("\n///TODO: Place the backend state fields\n");
+        _comment_!("TODO: Place the backend state fields");
         #[derive(Clone, Copy, Default)]
         pub struct #backend_state {
 
         }
 
-         _comment_!("\n///TODO: Place the backend config fields\n");
+         _comment_!("TODO: Place the backend config fields");
         #[derive(Clone, Copy, Default)]
         pub struct #backend_config {
 
@@ -178,14 +180,14 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
             access: ACCESS,
         }
 
-        impl #name<SL, CL, ACCESS>
+        impl<SL, CL, ACCESS> #name<SL, CL, ACCESS>
         where
             SL: Lane<#backend_state> + 'static,
             CL: Lane<#backend_config> + 'static,
         {
-            pub fn new(state: SL, config: CL, access: ACCESS) {
+            pub fn new(state: &'static SL, config: &'static CL, access: ACCESS) -> Self {
                 Self {
-                    state
+                    state,
                     config,
                     access,
                 }
@@ -196,7 +198,7 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
         where
             SL: Lane<#backend_state> + 'static,
             CL: Lane<#backend_config> + 'static,
-            ACCESS: oreos::IoAccess,
+            ACCESS: oreos::hal::IoAccess,
         {
             type Output = ();
             type Condition = #condition;
@@ -221,33 +223,13 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
     format_code(tokens)
 }
 
-pub fn bus_template(name: &str, device_state: &str) -> String {
-    let name = format_ident!("{}", to_pascal_case(name));
-    let device_state = format_ident!("{}", to_pascal_case(device_state));
-
-    let tokens = quote! {
-
-        #[derive(GenericBus)]
-        pub struct #name {
-            #[state]
-            state: #device_state,
-            estop_flag: EstopFlag,
-
-        _comment_!("\ninsert route arguments \n #[route(StateName::field_name => TargetState::field_name)\ntarget_state: TargetState");
-
-        }
-    };
-
-    format_code(tokens)
-}
-
 pub fn device_template(
     name: &str,
     state: &str,
     kernel: &str,
     config: &str,
     middlewares: &[&str],
-    backends: &[&str],
+    backends: &[(&str, Option<&str>)],
 ) -> String {
     let module = format_ident!("{}", to_snake_case(name));
     let pascal_name = to_pascal_case(name);
@@ -267,10 +249,22 @@ pub fn device_template(
             let ty = format_ident!("{}", to_pascal_case(m));
             quote! { #[middleware] #field: #ty }
         })
-        .chain(backends.iter().map(|b| {
+        .chain(backends.iter().map(|(b, access_name)| {
             let field = format_ident!("{}", to_snake_case(b));
-            let ty = format_ident!("{}", to_pascal_case(b));
-            quote! { #[backend(rate : "10")] #field: #ty }
+            let backend_name = to_pascal_case(b);
+            let ty = format_ident!("{}", backend_name);
+            let state = format_ident!("{}State", backend_name);
+            let config = format_ident!("{}Config", backend_name);
+            let access = format_ident!(
+                "{}",
+                access_name
+                    .map(to_pascal_case)
+                    .unwrap_or_else(|| format!("{}IoAccess", backend_name))
+            );
+            quote! {
+                #[backend(rate : "10")]
+                #field: #ty<FastLane<#state>, FastLane<#config>, #access>
+            }
         }))
         .collect();
 
@@ -284,10 +278,19 @@ pub fn device_template(
             let ty = format_ident!("{}", to_pascal_case(m));
             quote! { use crate::#module::#mod_name::#ty; }
         })
-        .chain(backends.iter().map(|b| {
+        .chain(backends.iter().map(|(b, access_name)| {
             let mod_name = format_ident!("{}", snake_with_suffix(b, "backend"));
             let ty = format_ident!("{}", to_pascal_case(b));
-            quote! { use crate::#module::#mod_name::#ty; }
+            let backend_name = to_pascal_case(b);
+            let state = format_ident!("{}State", backend_name);
+            let config = format_ident!("{}Config", backend_name);
+            let access = format_ident!(
+                "{}",
+                access_name
+                    .map(to_pascal_case)
+                    .unwrap_or_else(|| format!("{}IoAccess", backend_name))
+            );
+            quote! { use crate::#module::#mod_name::{#ty, #state, #config, #access}; }
         }))
         .collect();
 

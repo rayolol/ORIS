@@ -210,12 +210,11 @@ into lane data during `write`.
 A backend is hardware-facing behavior owned by a device: GPIO/PWM output,
 temperature acquisition, a motor driver, and similar work.
 
-A backend retains `&'static` access to its bus-owned state and configuration;
-it does not create a second authoritative copy of either. It owns only private
-algorithm/runtime data. Its hardware access is injected separately by the
-midlayer hardware binding and may contain direct IO capabilities,
-`TransportClient`s, or both. A backend does not need to own the raw physical
-peripheral.
+A backend may retain `&'static` access to bus-owned lanes; it does not create a
+second authoritative copy of device state. It owns private algorithm/runtime
+data and receives an access value assembled from hardware handles by the
+application. A future midlayer binding may assemble that value from a board
+description.
 
 #### `IoAccess` derive: current generated surface
 
@@ -244,7 +243,7 @@ The example therefore produces a surface equivalent to:
 impl<PWM> IoAccess for HeaterAccess<PWM> {}
 
 impl<PWM> HeaterAccess<PWM> {
-    fn new(output: PWM) -> Self {
+    pub fn new(output: PWM) -> Self {
         Self { output }
     }
 
@@ -258,12 +257,13 @@ The recognized kind strings are currently `"pwm"`, `"analog"`, `"digital"`,
 and `"transport"`. These strings select the intended capability category; they
 do not select a concrete Embassy type or initialize hardware.
 
-This derive is only the access-container side of the boundary. The current
-implementation does not yet generate a per-access API trait with associated
-types, and the runtime does not yet expose the marker `IoAccess` trait expected
-by the generated implementation. Constructor visibility, capability bounds,
-direction-specific digital kinds, CLI template wiring, and consumer compile
-tests are tracked in [Limitations and roadmap](LIMITATIONS_AND_ROADMAP.md).
+This derive is the access-container side of the boundary. The runtime exposes
+the `IoAccess` marker trait and the constructor is public. The marker does not
+provide an associated-type API for generated getters, so a backend that calls
+them uses a concrete access type. The
+[STM32F103C8 valve example](STM32_VALVE_EXAMPLE.md) compiles this arrangement
+with GPIO, ADC, and PWM handles. Remaining capability and CLI scaffold limits
+are tracked in [Limitations and roadmap](LIMITATIONS_AND_ROADMAP.md).
 
 Concrete values are still created by application/board initialization and
 moved into the access value. A future midlayer binding may generate that
@@ -272,16 +272,15 @@ transport servers.
 
 Backends implement `hal::Backend` manually. `#[create(Device)]` moves each
 backend into static storage and spawns one Embassy task per backend. The
-generated task currently calls `tick()` every 10 ms. It does not automatically
-call `Backend::init` or `Backend::config`, and it currently ignores the value
-returned by `tick`; the application/backend wiring must handle useful data via
-the state/config lanes.
+generated task calls `Backend::init(Default::default())` once and then calls
+`tick()` at the field's `tick_rate` millisecond delay. It does not call
+`Backend::config`, and it ignores the value returned by `tick`; the backend
+publishes useful data through its lane.
 
-Board profiles describe available hardware. Node bindings map a backend's
-logical access requirements onto that hardware, and the midlayer generates the
-typed access value passed to the backend constructor. For shared SPI, I2C, or
-1-Wire buses, one transport server owns the physical peripheral and generated
-clients identify the intended slave.
+The planned board profiles and node bindings would map backend access
+requirements onto concrete hardware. For shared SPI, I2C, or 1-Wire buses, a
+transport server would own the physical peripheral and clients would identify
+the intended slave. Current firmware assembles those access values manually.
 
 ## 4. Node startup and execution flow
 

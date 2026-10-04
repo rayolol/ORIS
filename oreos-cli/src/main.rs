@@ -318,8 +318,8 @@ fn generate_backend_code(
 
     let filename = format!("{}.rs", casing::snake_with_suffix(&backend.name, "backend"));
     let path = device_dir.join(filename);
-    // FIXME: IO access is not yet implemented for backends, so we pass None for now. Once it is implemented, we can pass the correct IO access type here, coming from backend.periph_access.
-    let content = templates::backend_template(&backend.name, None);
+    let access = backend.periph_access.as_ref().map(|access| access.name.as_str());
+    let content = templates::backend_template(&backend.name, access);
 
     let mut file = OpenOptions::new()
         .write(true)

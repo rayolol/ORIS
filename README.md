@@ -15,6 +15,8 @@ hardware configuration, diagnostics, and public API are still evolving.
   drivers, and runtime support.
 - `oreos-macros`: device, kernel, bus, application, and runtime code generation.
 - `oreos-cli`: the `ordl` host tool and the `OREOS.toml` project model.
+- `examples/stm32f103-valve`: a build-checked valve device using concrete
+  STM32 GPIO, ADC, and PWM handles.
 - `docs`: current behavior, practical workflows, limitations, and roadmap.
 
 ## Start here
@@ -23,6 +25,8 @@ hardware configuration, diagnostics, and public API are still evolving.
   backend, and middleware mean today.
 - [Building a system](docs/BUILDING_A_SYSTEM.md): scoping rules and the complete
   node/device workflow.
+- [STM32F103C8 valve example](docs/STM32_VALVE_EXAMPLE.md): a complete,
+  build-checked device with GPIO, ADC, PWM, bus routes, and runtime wiring.
 - [Limitations and roadmap](docs/LIMITATIONS_AND_ROADMAP.md): what is incomplete,
   what is unsafe to assume, and the planned Sema and hardware-configuration work.
 

@@ -9,6 +9,9 @@ Use these documents in order:
 3. [Limitations and roadmap](LIMITATIONS_AND_ROADMAP.md) — known constraints,
    the Sema migration, safe code generation, two-stage hardware configuration,
    and longer-term ORIS tooling.
+4. [STM32F103C8 valve example](STM32_VALVE_EXAMPLE.md) — a build-checked,
+   hand-completed device showing the current bus, backend, `IoAccess`, and
+   runtime wiring.
 
 The framework model is the current contract. Roadmap material is intentionally
 kept separate so planned behavior is not mistaken for implemented behavior.
