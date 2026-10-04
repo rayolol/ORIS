@@ -149,13 +149,13 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
         #io_access_tokens
 
         _comment_!("\n///TODO: Place the backend state fields\n");
-        #[derive(Clone, Copy)]
+        #[derive(Clone, Copy, Default)]
         pub struct #backend_state {
 
         }
 
          _comment_!("\n///TODO: Place the backend config fields\n");
-        #[derive(Clone, Copy)]
+        #[derive(Clone, Copy, Default)]
         pub struct #backend_config {
 
         }
@@ -176,6 +176,20 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
             state: &'static SL,
             config: &'static CL,
             access: ACCESS,
+        }
+
+        impl #name<SL, CL, ACCESS>
+        where
+            SL: Lane<#backend_state> + 'static,
+            CL: Lane<#backend_config> + 'static,
+        {
+            pub fn new(state: SL, config: CL, access: ACCESS) {
+                Self {
+                    state
+                    config,
+                    access,
+                }
+            }
         }
 
         impl<SL, CL, ACCESS> Backend for #name<SL, CL, ACCESS>
@@ -204,6 +218,26 @@ pub fn backend_template(name: &str, io_access: Option<&str>) -> String {
             }
         }
     };
+    format_code(tokens)
+}
+
+pub fn bus_template(name: &str, device_state: &str) -> String {
+    let name = format_ident!("{}", to_pascal_case(name));
+    let device_state = format_ident!("{}", to_pascal_case(device_state));
+
+    let tokens = quote! {
+
+        #[derive(GenericBus)]
+        pub struct #name {
+            #[state]
+            state: #device_state,
+            estop_flag: EstopFlag,
+
+        _comment_!("\ninsert route arguments \n #[route(StateName::field_name => TargetState::field_name)\ntarget_state: TargetState");
+
+        }
+    };
+
     format_code(tokens)
 }
 
@@ -236,7 +270,7 @@ pub fn device_template(
         .chain(backends.iter().map(|b| {
             let field = format_ident!("{}", to_snake_case(b));
             let ty = format_ident!("{}", to_pascal_case(b));
-            quote! { #[backend] #field: #ty }
+            quote! { #[backend(rate : "10")] #field: #ty }
         }))
         .collect();
 
