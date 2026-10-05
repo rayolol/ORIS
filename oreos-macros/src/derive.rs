@@ -98,10 +98,14 @@ pub fn impl_kernel(input: DeriveInput) -> syn::Result<TokenStream> {
         config_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[config] field"))?;
     let bus_type = bus_type.ok_or_else(|| syn::Error::new_spanned(name, "missing #[bus] field"))?;
 
+    // The bus field may be a static reference; its storage belongs to the bus type.
+    let storage_bus_type = match &bus_type {
+        syn::Type::Reference(reference) => reference.elem.as_ref(),
+        other => other,
+    };
+
     let expanded = quote! {
         impl #name {
-            type Storage = #bus_type;
-
             pub fn new(
                 #state: #state_type,
                 #config: #config_type,
@@ -120,6 +124,9 @@ pub fn impl_kernel(input: DeriveInput) -> syn::Result<TokenStream> {
 
             type State = #state_type;
             type Config = #config_type;
+            type Storage =
+                <#storage_bus_type as
+            ::oreos::hal::GenericBus<#state_type>>::Storage;
 
             fn init(&mut self, _config: &Self::Config) -> Result<(), ::oreos::hal::KernelError> {
                 Ok(())
@@ -317,7 +324,8 @@ pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
 
     let expanded = quote! {
 
-        struct #static_bus_storage {
+        #[doc(hidden)]
+        pub struct #static_bus_storage {
             pub bus: ::oreos::prelude::static_cell::StaticCell<#name>
         }
 
@@ -346,6 +354,8 @@ pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
         }
 
         impl ::oreos::hal::GenericBus<#local_state> for #name {
+            type Storage = #static_bus_storage;
+
             fn estop(&self) -> &::oreos::hal::EstopFlag {
                 &self.estop
             }

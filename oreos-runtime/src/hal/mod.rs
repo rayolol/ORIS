@@ -36,6 +36,8 @@ impl EstopFlag {
 }
 
 pub trait GenericBus<T: State> {
+    type Storage: 'static;
+
     fn estop(&self) -> &EstopFlag;
     fn update(&self, state: &mut T);
     fn write(&self, state: &T);
@@ -143,6 +145,7 @@ pub trait Backend {
 pub trait Kernel {
     type Config: Config;
     type State: State + Copy;
+    type Storage: 'static;
 
     fn init(&mut self, config: &Self::Config) -> Result<(), KernelError>;
 
