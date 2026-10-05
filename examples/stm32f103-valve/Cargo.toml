@@ -1,0 +1,18 @@
+[package]
+name = "oreos-stm32f103-valve-example"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+oreos = { package = "oreos-runtime", path = "../../oreos-runtime" }
+embassy-executor = { version = "0.10.0", features = ["executor-thread", "executor-interrupt", "platform-cortex-m", "defmt"] }
+embassy-stm32 = { version = "0.6.0", features = ["stm32f103c8", "time-driver-any", "defmt"] }
+embedded-hal = "1.0.0"
+defmt = "1.1.1"
+defmt-rtt = "1.1.0"
+panic-probe = { version = "1.0.0", features = ["print-defmt"] }
