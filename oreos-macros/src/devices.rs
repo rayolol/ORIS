@@ -8,7 +8,7 @@ use super::DeviceList;
 pub fn devices(_app_attr: TokenStream, input: TokenStream) -> TokenStream {
     let list = parse_macro_input!(input as DeviceList);
 
-    // #[device] items implement MaybeDevice and need .start(spawner) called on them.
+    // #[device] items implement MaybeDevice and receive their own backend storage at startup.
     // They are stored exclusively (like nonshared) but are not user-accessible via ContextView.
     let is_device = |i: &&DeviceItem| i.attrs.iter().any(|a| a.path().is_ident("device"));
     let is_shared = |i: &&DeviceItem| i.shared && !is_device(i);
@@ -44,7 +44,31 @@ pub fn devices(_app_attr: TokenStream, input: TokenStream) -> TokenStream {
         .map(|n| quote::format_ident!("__{}_static_ref__", n.to_string()))
         .collect();
 
+    let storage_modules: Vec<_> = device_names
+        .iter()
+        .map(|name| quote::format_ident!("__{}_storage", name))
+        .collect();
+
     let out = quote! {
+        #(
+        mod #storage_modules {
+                use super::*;
+
+                type BackendStorage =
+                    <#device_types as ::oreos::hal::MaybeDevice>::Storage;
+
+                type BusStorage =
+                    <<#device_types as ::oreos::hal::Device>::Kernel
+                        as ::oreos::hal::Kernel>::Storage;
+
+                pub(super) static BACKENDS: BackendStorage =
+                    BackendStorage::new();
+
+                pub(super) static BUS: BusStorage =
+                    BusStorage::new();
+            }
+        )*
+
         pub mod devices {
             use super::*;
 
@@ -118,7 +142,7 @@ pub fn devices(_app_attr: TokenStream, input: TokenStream) -> TokenStream {
                         #device_statics.init(device.#device_names) as *mut _;
                     let #device_static_refs: &'static #device_types =
                         unsafe { &*(#device_names as *const #device_types) };
-                    #device_static_refs.start(spawner);
+                    #device_static_refs.start(spawner, &super::#storage_modules::BACKENDS);
                 )*
 
                 StoredContext {

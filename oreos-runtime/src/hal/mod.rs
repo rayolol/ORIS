@@ -48,7 +48,13 @@ pub enum KernelError {
 }
 
 pub trait MaybeDevice {
-    fn start(&'static self, spawner: embassy_executor::Spawner);
+    type Storage: 'static;
+
+    fn start(
+        &'static self,
+        spawner: embassy_executor::Spawner,
+        storage: &'static Self::Storage,
+    );
 }
 
 pub enum DeviceError {}

@@ -100,6 +100,8 @@ pub fn impl_kernel(input: DeriveInput) -> syn::Result<TokenStream> {
 
     let expanded = quote! {
         impl #name {
+            type Storage = #bus_type;
+
             pub fn new(
                 #state: #state_type,
                 #config: #config_type,
@@ -112,6 +114,7 @@ pub fn impl_kernel(input: DeriveInput) -> syn::Result<TokenStream> {
                 }
             }
         }
+
 
         impl ::oreos::hal::Kernel for #name {
 
@@ -248,7 +251,7 @@ pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
         ));
     }
 
-    let static_bus = quote::format_ident!("__{}__", name);
+    let static_bus_storage = quote::format_ident!("__{}Storage__", name);
 
     let local_state =
         local_state.ok_or_else(|| syn::Error::new_spanned(name, "missing #[state] field"))?;
@@ -313,20 +316,32 @@ pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
         .collect();
 
     let expanded = quote! {
+
+        struct #static_bus_storage {
+            pub bus: ::oreos::prelude::static_cell::StaticCell<#name>
+        }
+
+        impl #static_bus_storage {
+            pub const fn new() -> Self {
+                Self {
+                    bus: ::oreos::prelude::static_cell::StaticCell::new()
+                }
+            }
+        }
+
         impl #name {
             pub fn new(
                 #(#lane_fields: #lanes_types,)*
                 #local_state_ident: #local_state,
                 estop: ::oreos::hal::EstopFlag,
-            ) -> &'static Self {
+            ) -> Self {
 
-                static #static_bus: ::oreos::prelude::static_cell::StaticCell<#name> =
-                    ::oreos::prelude::static_cell::StaticCell::new();
-                #static_bus.init(Self {
+
+                Self {
                     #(#lane_fields,)*
                     #local_state_ident,
                     estop,
-                })
+                }
             }
         }
 
@@ -377,6 +392,7 @@ impl syn::parse::Parse for BackendArgs {
 // #[create(Device)]
 pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
     let name = &input.ident;
+    let storage_name = format_ident!("__{}BackendStorage", name);
 
     let mut backends: Vec<proc_macro2::TokenStream> = Vec::new();
 
@@ -399,7 +415,6 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
 
     let mut backend_types: Vec<_> = Vec::new();
     let mut backend_tasks: Vec<_> = Vec::new();
-    let mut backend_names: Vec<_> = Vec::new();
     let mut field_names: Vec<_> = Vec::new();
 
     let mut shadowed: proc_macro2::TokenStream = proc_macro2::TokenStream::new();
@@ -425,12 +440,9 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
 
                 field.attrs.retain(|a| !a.path().is_ident("backend"));
 
-                let backend_name =
-                    quote::format_ident!("__{}_BACKEND__", field_name.to_string().to_uppercase());
                 let task_name =
                     quote::format_ident!("__{}_TASK__", field_name.to_string().to_uppercase());
 
-                backend_names.push(backend_name.clone());
                 backend_tasks.push(task_name.clone());
                 backend_types.push(raw_ty.clone());
                 field_names.push(field_name.clone());
@@ -442,10 +454,6 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                 );
 
                 backends.push(quote! {
-                    static #backend_name: ::oreos::prelude::static_cell::StaticCell<#raw_ty> =
-                        ::oreos::prelude::static_cell::StaticCell::new();
-
-
 
                     #[embassy_executor::task]
                     async fn #task_name(backend: &'static mut #raw_ty) {
@@ -591,6 +599,25 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
 
         #shadowed
 
+        #[doc(hidden)]
+        pub struct #storage_name {
+                #(
+                pub #field_names:
+                    ::oreos::prelude::static_cell::StaticCell<#backend_types>,
+            )*
+        }
+
+        impl #storage_name {
+            pub const fn new() -> Self {
+                Self {
+                    #(
+                        #field_names:
+                            ::oreos::prelude::static_cell::StaticCell::new(),
+                    )*
+                }
+            }
+        }
+
 
 
         impl ::oreos::hal::Device for #name {
@@ -633,17 +660,21 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-
         #(#backends)*
 
-
         impl ::oreos::hal::MaybeDevice for #name {
-            fn start(&'static self, spawner: ::embassy_executor::Spawner) {
+            type Storage = #storage_name;
+
+            fn start(
+                &'static self,
+                spawner: ::embassy_executor::Spawner,
+                storage: &'static Self::Storage,
+            ) {
 
 
                 #(let #field_names = unsafe { &mut *self.#field_names.get() }.take().unwrap();)*
 
-                #(let #field_names = #backend_names.init(#field_names);)*
+                #(let #field_names = storage.#field_names.init(#field_names);)*
 
                 #(spawner.spawn(#backend_tasks(#field_names).unwrap());)*
 
