@@ -65,6 +65,7 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemMod);
     let args = parse_macro_input!(app_attr as AppArgs);
     let hal_crate = &args.hal_crate;
+    let entry = &args.entry;
     let app_module: syn::Ident = input.ident.clone();
 
     let mut generated_tasks = Vec::new();
@@ -251,7 +252,7 @@ pub fn app(app_attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #input
 
-        #[embassy_executor::main]
+        #[#entry]
         async fn main(spawner: embassy_executor::Spawner) {
             use crate::#app_module::*;
             let p = #hal_crate::init(#init_config);

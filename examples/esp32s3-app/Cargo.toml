@@ -1,0 +1,25 @@
+[package]
+name = "oreos-esp32s3-app-example"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+oreos = { package = "oreos-runtime", path = "../../oreos-runtime", default-features = false }
+embassy-executor = "0.10.0"
+esp-hal = { version = "~1.2.0", features = ["esp32s3", "unstable"] }
+esp-rtos = { version = "0.4.0", features = ["esp32s3", "embassy"] }
+esp-backtrace = { version = "0.20.0", features = ["esp32s3", "panic-handler", "println"] }
+esp-bootloader-esp-idf = { version = "0.6.0", features = ["esp32s3"] }
+esp-println = { version = "0.18.0", features = ["esp32s3", "defmt-espflash"] }
+
+[profile.dev]
+opt-level = "s"
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+

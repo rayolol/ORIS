@@ -380,21 +380,46 @@ pub fn impl_bus(input: DeriveInput) -> syn::Result<TokenStream> {
 }
 
 struct BackendArgs {
-    rate_ident: syn::Ident,
-    colon_token: syn::Token![:],
     tick_rate: syn::LitStr,
+    pool_size: syn::LitInt,
 }
 
 impl syn::parse::Parse for BackendArgs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let rate_ident: syn::Ident = input.parse()?;
-        let colon_token: syn::Token![:] = input.parse()?;
-        let tick_rate: syn::LitStr = input.parse()?;
-
+        let mut tick_rate = None;
+        let mut pool_size: Option<syn::LitInt> = None;
+        while !input.is_empty() {
+            let key: syn::Ident = input.parse()?;
+            input.parse::<syn::Token![:]>()?;
+            match key.to_string().as_str() {
+                "tick_rate" if tick_rate.is_none() => tick_rate = Some(input.parse()?),
+                "pool_size" if pool_size.is_none() => {
+                    let value: syn::LitInt = input.parse()?;
+                    if value.base10_parse::<usize>()? == 0 {
+                        return Err(syn::Error::new(
+                            value.span(),
+                            "pool_size must be at least 1",
+                        ));
+                    }
+                    pool_size = Some(value);
+                }
+                "tick_rate" | "pool_size" => {
+                    return Err(syn::Error::new(key.span(), "duplicate backend option"));
+                }
+                _ => {
+                    return Err(syn::Error::new(
+                        key.span(),
+                        "expected tick_rate or pool_size",
+                    ));
+                }
+            }
+            if !input.is_empty() {
+                input.parse::<syn::Token![,]>()?;
+            }
+        }
         Ok(BackendArgs {
-            rate_ident,
-            colon_token,
-            tick_rate,
+            tick_rate: tick_rate.ok_or_else(|| input.error("missing tick_rate"))?,
+            pool_size: pool_size.unwrap_or_else(|| syn::parse_quote!(1)),
         })
     }
 }
@@ -441,10 +466,11 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
                 let raw_ty = field.ty.clone();
                 let field_name = field.ident.as_ref().unwrap();
 
-                let tick_rate: BackendArgs = field.attrs[attr_index].parse_args()?;
-                let tick_rate_span = tick_rate.tick_rate.span();
+                let settings: BackendArgs = field.attrs[attr_index].parse_args()?;
+                let tick_rate_span = settings.tick_rate.span();
+                let pool_size = settings.pool_size;
 
-                let tick_rate = tick_rate.tick_rate.value().parse::<u64>().map_err(|err| {
+                let tick_rate = settings.tick_rate.value().parse::<u64>().map_err(|err| {
                     syn::Error::new(tick_rate_span, format!("invalid `tick_rate`: {err}"))
                 })?;
 
@@ -465,7 +491,7 @@ pub fn create_device(mut input: DeriveInput) -> syn::Result<TokenStream> {
 
                 backends.push(quote! {
 
-                    #[embassy_executor::task]
+                    #[embassy_executor::task(pool_size = #pool_size)]
                     async fn #task_name(backend: &'static mut #raw_ty) {
                         let config: <#raw_ty as ::oreos::hal::Backend>::Config =
                         ::core::default::Default::default();

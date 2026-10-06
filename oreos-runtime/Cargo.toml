@@ -10,6 +10,15 @@ test = false
 bench = false
 
 [features]
+default = ["stm32"]
+stm32 = [
+    "dep:embassy-stm32",
+    "embassy-executor/executor-thread",
+    "embassy-executor/executor-interrupt",
+    "embassy-executor/platform-cortex-m",
+    "embassy-time/tick-hz-1_000_000",
+    "embassy-time/generic-queue-8",
+]
 panic-handler = ["dep:panic-probe"]
 
 
@@ -28,7 +37,7 @@ embedded-io = { workspace = true }
 minicbor = { workspace = true }
 enum_delegate = { workspace = true }
 embassy-sync = { workspace = true }
-embassy-stm32 = { workspace = true }
+embassy-stm32 = { workspace = true, optional = true }
 embedded-hal-async = { workspace = true }
 embedded-io-async = { workspace = true }
 bitfields = { workspace = true }

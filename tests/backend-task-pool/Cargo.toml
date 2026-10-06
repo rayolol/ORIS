@@ -1,0 +1,14 @@
+[package]
+name = "oreos-backend-task-pool-test"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+oreos = { package = "oreos-runtime", path = "../../oreos-runtime", default-features = false }
+embassy-executor = "0.10.0"
+embassy-time = { version = "0.5.1", features = ["std"] }
+critical-section = { version = "1.2.0", features = ["std"] }
+

@@ -1,5 +1,3 @@
-#![feature(proc_macro_span)]
-
 mod app;
 mod command;
 mod derive;
@@ -55,14 +53,34 @@ fn save_macro_metadata(name: &str, payload: crate::metadata::ComponentPayload) {
 
 pub(crate) struct AppArgs {
     pub hal_crate: syn::Ident,
+    pub entry: syn::Path,
 }
 
 impl syn::parse::Parse for AppArgs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let _: syn::Ident = input.parse()?;
-        let _: syn::Token![=] = input.parse()?;
-        let hal_crate: syn::Ident = input.parse()?;
-        Ok(AppArgs { hal_crate })
+        let mut hal_crate = None;
+        let mut entry = None;
+
+        while !input.is_empty() {
+            let key: syn::Ident = input.parse()?;
+            input.parse::<syn::Token![=]>()?;
+            match key.to_string().as_str() {
+                "hal_crate" if hal_crate.is_none() => hal_crate = Some(input.parse()?),
+                "entry" if entry.is_none() => entry = Some(input.parse()?),
+                "hal_crate" | "entry" => {
+                    return Err(syn::Error::new(key.span(), "duplicate app option"));
+                }
+                _ => return Err(syn::Error::new(key.span(), "expected hal_crate or entry")),
+            }
+            if !input.is_empty() {
+                input.parse::<syn::Token![,]>()?;
+            }
+        }
+
+        Ok(AppArgs {
+            hal_crate: hal_crate.ok_or_else(|| input.error("missing hal_crate"))?,
+            entry: entry.unwrap_or_else(|| syn::parse_quote!(embassy_executor::main)),
+        })
     }
 }
 

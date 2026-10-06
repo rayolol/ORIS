@@ -277,6 +277,12 @@ generated task calls `Backend::init(Default::default())` once and then calls
 `Backend::config`, and it ignores the value returned by `tick`; the backend
 publishes useful data through its lane.
 
+Backend task capacity defaults to one instance. For a device type instantiated
+twice, declare `#[backend(tick_rate: "20", pool_size: 2)]` on each backend field.
+OREOS forwards the capacity to Embassy's `#[task(pool_size = 2)]`; each task slot
+uses additional RAM. Instance bus/backend storage and task pool capacity are
+separate: distinct storage cells do not create additional task slots.
+
 The planned board profiles and node bindings would map backend access
 requirements onto concrete hardware. For shared SPI, I2C, or 1-Wire buses, a
 transport server would own the physical peripheral and clients would identify
@@ -286,7 +292,9 @@ the intended slave. Current firmware assembles those access values manually.
 
 ### Boot
 
-1. `#[app(hal_crate = ...)]` generates `#[embassy_executor::main]`.
+1. `#[app(hal_crate = ...)]` generates `#[embassy_executor::main]` by default.
+   An optional `entry = path::to::main` selects another compatible async entry
+   macro, for example `#[app(hal_crate = esp_hal, entry = esp_rtos::main)]`.
 2. The generated main calls `hal_crate::init(config)`.
 3. It calls the application's single `#[init]` function.
 4. The application constructs hardware, buses, kernels, backends, devices, and
@@ -296,6 +304,12 @@ the intended slave. Current firmware assembles those access values manually.
 7. Every field tagged `#[device]` receives `MaybeDevice::start`, which starts
    its generated backend tasks.
 8. Every `#[loop_(rate = N)]` function is spawned as an Embassy task.
+
+Platform setup belongs in the application's `#[init]`. The
+[ESP32-S3 example](../examples/esp32s3-app/README.md) starts the ESP scheduler and
+time driver there, before OREOS starts the devices and application loops. Its
+OREOS dependency disables default features to omit the existing STM32 Cargo
+configuration.
 
 ### Periodic application loops
 

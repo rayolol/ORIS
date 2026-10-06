@@ -65,6 +65,7 @@ pub use embassy_executor;
 pub use embassy_executor::Spawner;
 
 #[doc(hidden)]
+#[cfg(feature = "stm32")]
 pub use embassy_stm32;
 
 #[doc(hidden)]
@@ -74,6 +75,7 @@ pub use embassy_sync;
 pub use embassy_time;
 
 #[doc(hidden)]
+#[cfg(all(target_arch = "arm", target_os = "none"))]
 pub use cortex_m_rt;
 
 #[doc(hidden)]
