@@ -1,16 +1,22 @@
+pub mod cargo_toml;
 pub mod casing;
 pub mod diff;
+pub mod hal_descriptor;
 pub mod ops;
 pub mod scanner;
 pub mod scheme;
 pub mod sync_engine;
 pub mod templates;
 
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use clap::Parser;
 use scheme::{Backend, BusLane, ControlNode, Device, Kernel, Middleware, TypeName};
 
-use crate::scheme::PeripheralAccess;
+use crate::{
+    cargo_toml::create_cargo_project,
+    hal_descriptor::{ChipDescriptor, Hal, ProjectConfig},
+    scheme::{OreosConfig, PeripheralAccess},
+};
 
 #[derive(Parser)]
 #[command(name = "ORDL")]
@@ -22,6 +28,9 @@ struct Cli {
 
 #[derive(clap::Subcommand)]
 enum Commands {
+    Init {
+        name: String,
+    },
     New {
         #[command(subcommand)]
         resource: Option<Resource>,
@@ -106,6 +115,8 @@ fn main() -> Result<()> {
             node.save()?;
             println!("✓ Saved updated OREOS.toml");
         }
+
+        Commands::Init { name } => init_project(name)?,
     }
     Ok(())
 }
@@ -318,7 +329,10 @@ fn generate_backend_code(
 
     let filename = format!("{}.rs", casing::snake_with_suffix(&backend.name, "backend"));
     let path = device_dir.join(filename);
-    let access = backend.periph_access.as_ref().map(|access| access.name.as_str());
+    let access = backend
+        .periph_access
+        .as_ref()
+        .map(|access| access.name.as_str());
     let content = templates::backend_template(&backend.name, access);
 
     let mut file = OpenOptions::new()
@@ -335,6 +349,39 @@ fn generate_backend_code(
 
     file.write_all(content.as_bytes())?;
     println!("Generated {}", path.display());
+
+    Ok(())
+}
+
+pub fn init_project(name: String) -> Result<()> {
+    let hal_name = ops::ask("hal_name (eg: stm32, esp32...): ")?;
+    let chip_name = ops::ask("chip_name (eg: stm32f103, esp32-s3...): ")?;
+
+    let target_name =
+        ops::ask("target (eg; thumbv7m-none-eabi) see your chips documentation for it: ")
+            .unwrap_or_default();
+    let tool_chain = ops::ask("toolchain: ").unwrap_or("stable".to_string());
+
+    let chip = ChipDescriptor {
+        name: chip_name,
+        target: target_name,
+        toolchain: tool_chain,
+    };
+
+    let hal = match hal_name.as_str() {
+        "esp" | "esp32" => Hal::Esp(chip),
+        "stm" | "stm32" => Hal::Stm(chip),
+        _ => anyhow::bail!("unknown HAL: {hal_name}"),
+    };
+
+    let project_dir = std::env::current_dir()?;
+    create_cargo_project(&project_dir, &hal)?;
+
+    let project = ProjectConfig { name, chip: hal };
+
+    let mut config = OreosConfig::load()?;
+    config.project = Some(project);
+    config.save()?;
 
     Ok(())
 }

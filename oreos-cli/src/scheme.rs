@@ -1,8 +1,34 @@
+use crate::hal_descriptor::ProjectConfig;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::Path};
 
 pub const OREOS_FILE_PATH: &str = "OREOS.toml";
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct OreosConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<ProjectConfig>,
+
+    #[serde(flatten)]
+    pub control_node: ControlNode,
+}
+
+impl OreosConfig {
+    pub fn load() -> Result<Self> {
+        if !Path::new(OREOS_FILE_PATH).exists() {
+            return Ok(Self::default());
+        }
+        let content = std::fs::read_to_string(OREOS_FILE_PATH)?;
+        Ok(toml::from_str(&content)?)
+    }
+
+    pub fn save(&self) -> Result<()> {
+        let toml = toml::to_string_pretty(self)?;
+        std::fs::write(OREOS_FILE_PATH, toml)?;
+        Ok(())
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct ControlNode {
